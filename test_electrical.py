@@ -19,10 +19,11 @@ class TestElectrical(unittest.TestCase):
     def test_negative_resistance(self):
         with self.assertRaises(ValueError):
             analyze_dc(12, -6)
+
     def test_zero_voltage(self):
-    result = analyze_dc(0, 10)
-    self.assertAlmostEqual(result["current_a"], 0.0)
-    self.assertAlmostEqual(result["power_w"], 0.0)
+        result = analyze_dc(0, 10)
+        self.assertAlmostEqual(result["current_a"], 0.0)
+        self.assertAlmostEqual(result["power_w"], 0.0)
 
 
 if __name__ == "__main__":
