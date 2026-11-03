@@ -18,7 +18,7 @@ class TestElectrical(unittest.TestCase):
 
     def test_negative_resistance(self):
         with self.assertRaises(ValueError):
-            analyze_dc(12, -6)
+            analyze_dc(12, -5)
 
     def test_zero_voltage(self):
         result = analyze_dc(0, 10)
