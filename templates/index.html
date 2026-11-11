@@ -1,0 +1,135 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>BJT Common-Emitter DC Bias</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <main class="page">
+    <header class="hero">
+      <p class="eyebrow">ENG29 2121 · Lab 02</p>
+      <h1>BJT Common-Emitter DC Bias</h1>
+      <p class="lede">Voltage-divider bias under the forward-active approximation. Resistances are calculated in ohms (Ω).</p>
+    </header>
+
+    <section class="card">
+      <h2>Inputs</h2>
+
+      {% if errors %}
+      <div class="alert alert-error" role="alert">
+        <strong>Please fix the following:</strong>
+        <ul>
+          {% for message in errors.values() %}
+          <li>{{ message }}</li>
+          {% endfor %}
+        </ul>
+      </div>
+      {% endif %}
+
+      <form method="post" action="{{ url_for('calculate') }}">
+        <div class="form-grid">
+          <label class="field">
+            <span>VCC (V)</span>
+            <input type="text" inputmode="decimal" name="vcc" value="{{ values.vcc }}" required>
+            {% if errors.get('vcc') %}<span class="field-error">{{ errors.get('vcc') }}</span>{% endif %}
+          </label>
+
+          <label class="field">
+            <span>R1 (Ω or kΩ)</span>
+            <input type="text" inputmode="decimal" name="r1" value="{{ values.r1 }}" required>
+            {% if errors.get('r1') %}<span class="field-error">{{ errors.get('r1') }}</span>{% endif %}
+          </label>
+
+          <label class="field">
+            <span>R2 (Ω or kΩ)</span>
+            <input type="text" inputmode="decimal" name="r2" value="{{ values.r2 }}" required>
+            {% if errors.get('r2') %}<span class="field-error">{{ errors.get('r2') }}</span>{% endif %}
+          </label>
+
+          <label class="field">
+            <span>RC (Ω or kΩ)</span>
+            <input type="text" inputmode="decimal" name="rc" value="{{ values.rc }}" required>
+            {% if errors.get('rc') %}<span class="field-error">{{ errors.get('rc') }}</span>{% endif %}
+          </label>
+
+          <label class="field">
+            <span>RE (Ω or kΩ)</span>
+            <input type="text" inputmode="decimal" name="re" value="{{ values.re }}" required>
+            {% if errors.get('re') %}<span class="field-error">{{ errors.get('re') }}</span>{% endif %}
+          </label>
+
+          <label class="field">
+            <span>β (unitless)</span>
+            <input type="text" inputmode="decimal" name="beta" value="{{ values.beta }}" required>
+            {% if errors.get('beta') %}<span class="field-error">{{ errors.get('beta') }}</span>{% endif %}
+          </label>
+
+          <label class="field">
+            <span>VBE (V)</span>
+            <input type="text" inputmode="decimal" name="vbe" value="{{ values.vbe }}" required>
+            {% if errors.get('vbe') %}<span class="field-error">{{ errors.get('vbe') }}</span>{% endif %}
+          </label>
+
+          <label class="field">
+            <span>Resistor unit</span>
+            <select name="resistor_unit">
+              <option value="ohm" {% if submitted_unit == 'ohm' %}selected{% endif %}>Ω</option>
+              <option value="kohm" {% if submitted_unit == 'kohm' %}selected{% endif %}>kΩ</option>
+            </select>
+            {% if errors.get('resistor_unit') %}<span class="field-error">{{ errors.get('resistor_unit') }}</span>{% endif %}
+          </label>
+        </div>
+
+        <button type="submit">Calculate DC Bias</button>
+      </form>
+    </section>
+
+    {% if result %}
+    <section class="card results" aria-live="polite">
+      <div class="result-heading">
+        <h2>DC Operating Point</h2>
+        <span class="badge badge-{{ result.region|lower }}">{{ result.region }}</span>
+      </div>
+
+      {% if result.warnings %}
+      <div class="alert alert-warning" role="alert">
+        <strong>Model limitation:</strong>
+        {% for warning in result.warnings %}
+        <p>{{ warning }}</p>
+        {% endfor %}
+        <p>The values below are the forward-active equation output, not a validated operating point.</p>
+      </div>
+      {% endif %}
+
+      <table class="results-table">
+        <thead>
+          <tr><th>Quantity</th><th>Value</th><th>Unit</th></tr>
+        </thead>
+        <tbody>
+          <tr><td>VB</td><td>{{ "%.3f"|format(result.vb_v) }}</td><td>V</td></tr>
+          <tr><td>VE</td><td>{{ "%.3f"|format(result.ve_v) }}</td><td>V</td></tr>
+          <tr><td>VC</td><td>{{ "%.3f"|format(result.vc_v) }}</td><td>V</td></tr>
+          <tr><td>VCE</td><td>{{ "%.3f"|format(result.vce_v) }}</td><td>V</td></tr>
+          <tr><td>IC</td><td>{{ "%.3f"|format(result.ic_a * 1000) }}</td><td>mA</td></tr>
+          <tr><td>IB</td><td>{{ "%.3f"|format(result.ib_a * 1000000) }}</td><td>µA</td></tr>
+          <tr><td>IE</td><td>{{ "%.3f"|format(result.ie_a * 1000) }}</td><td>mA</td></tr>
+        </tbody>
+      </table>
+
+      <p class="normalized">
+        <strong>Resistances used:</strong>
+        R1 = {{ normalized.r1 }}, R2 = {{ normalized.r2 }},
+        RC = {{ normalized.rc }}, RE = {{ normalized.re }}
+      </p>
+    </section>
+    {% endif %}
+
+    <section class="card notes">
+      <h2>Model assumptions</h2>
+      <p>Forward-active approximation with constant β and constant VBE. The saturation warning threshold is VCE &lt; 0.3 V. This is a DC bias calculator, not a SPICE simulator.</p>
+    </section>
+  </main>
+</body>
+</html>
