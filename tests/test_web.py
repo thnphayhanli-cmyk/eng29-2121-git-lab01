@@ -68,6 +68,33 @@ class TestWeb(unittest.TestCase):
         self.assertIn("Enter a value.", body)
         self.assertNotIn("DC Operating Point", body)
 
+    def test_post_missing_value_preserves_other_values_and_unit(self):
+        payload = {
+            "vcc": "9",
+            "r1": "",
+            "r2": "33",
+            "rc": "4.7",
+            "re": "1.5",
+            "beta": "250",
+            "vbe": "0.65",
+            "resistor_unit": "kohm",
+        }
+        response = self.client.post("/calculate", data=payload)
+        self.assertEqual(response.status_code, 400)
+        body = response.get_data(as_text=True)
+        for value in ("9", "33", "4.7", "1.5", "250", "0.65"):
+            self.assertIn(f'value="{value}"', body)
+        self.assertIn('value="kohm" selected', body)
+
+    def test_post_fractional_ohm_resistance_is_reported_exactly(self):
+        payload = dict(DEFAULT_PAYLOAD)
+        payload["re"] = "4.7"
+        response = self.client.post("/calculate", data=payload)
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn("4.7 Ω (0.0047 kΩ)", body)
+        self.assertNotIn("5 Ω (0.0047 kΩ)", body)
+
     def test_post_non_numeric_returns_400_with_error(self):
         payload = dict(DEFAULT_PAYLOAD)
         payload["beta"] = "abc"

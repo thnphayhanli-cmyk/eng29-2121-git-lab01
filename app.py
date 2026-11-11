@@ -27,7 +27,7 @@ NUMERIC_FIELDS = ("vcc", "r1", "r2", "rc", "re", "beta", "vbe")
 RESISTOR_UNIT_MULTIPLIERS = {"ohm": 1.0, "kohm": 1_000.0}
 
 
-def parse_form(form):
+def parse_form(form) -> tuple[dict[str, str], dict[str, float], dict[str, str]]:
     """Parse the form into raw values, numeric values, and field errors."""
 
     values = {field: form.get(field, "").strip() for field in NUMERIC_FIELDS}
@@ -48,10 +48,14 @@ def parse_form(form):
     return values, parsed, errors
 
 
-def format_resistance(value_ohm):
-    """Render a resistance in canonical ohms and its kΩ equivalent."""
+def format_resistance(value_ohm: float) -> str:
+    """Render a resistance in canonical ohms and its kΩ equivalent.
 
-    return f"{value_ohm:,.0f} Ω ({value_ohm / 1000:g} kΩ)"
+    Six significant digits keep fractional values such as 4.7 Ω exact, so the
+    audit line never reports a resistance other than the one that was used.
+    """
+
+    return f"{value_ohm:,.6g} Ω ({value_ohm / 1000:g} kΩ)"
 
 
 @app.get("/")

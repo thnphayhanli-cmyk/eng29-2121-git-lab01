@@ -98,7 +98,7 @@ python -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-ผลที่คาดหวัง: `Ran 20 tests` และ `OK`
+ผลที่คาดหวัง: `Ran 22 tests` และ `OK`
 
 ## ค่าเริ่มต้นสำหรับสาธิต
 

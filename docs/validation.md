@@ -124,7 +124,7 @@ Command:
 Result:
 
 ```text
-Ran 20 tests in 0.053s
+Ran 22 tests in 0.054s
 
 OK
 ```
@@ -132,7 +132,7 @@ OK
 Breakdown:
 
 - 11 engineering tests in `tests/test_dc_bias.py`
-- 9 Flask HTTP tests in `tests/test_web.py`
+- 11 Flask HTTP tests in `tests/test_web.py`
 
 ## 5. Browser Demonstration — 2026-11-11
 
