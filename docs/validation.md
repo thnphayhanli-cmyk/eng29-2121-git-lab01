@@ -134,6 +134,25 @@ Breakdown:
 - 11 engineering tests in `tests/test_dc_bias.py`
 - 9 Flask HTTP tests in `tests/test_web.py`
 
-## 5. Scope Note
+## 5. Browser Demonstration — 2026-11-11
+
+The app was run locally with:
+
+```powershell
+.\.venv\Scripts\python.exe -m flask --app app run --debug
+```
+
+and exercised at `http://127.0.0.1:5000/` in the in-app browser:
+
+| Demonstration | Observed result |
+|---|---|
+| Initial page | Form loaded with defaults; no browser-console errors |
+| Default values | Active region; VB 1.942 V, VE 1.242 V, VC 9.294 V, VCE 8.052 V, IC 1.230 mA, IB 12.299 µA, IE 1.242 mA |
+| `R1 = 0` | HTTP 400; “R1 must be greater than zero.”; no result table |
+| `R2 = 5000 Ω` | Cutoff warning; result labeled as invalid forward-active output |
+| `RC = 10000 Ω` | Saturation warning; result labeled as invalid forward-active output |
+| kΩ input `100 / 22 / 2.2 / 1` | Same active operating point as the default Ω values; normalized line shows `100,000 Ω (100 kΩ)` |
+
+## 6. Scope Note
 
 This comparison is documentation and automated-test evidence only. It is intentionally not displayed as an extra reference table in the web UI, to keep the Lab 02 scope minimal.
