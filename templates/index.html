@@ -86,6 +86,89 @@
       </form>
     </section>
 
+    <section class="card schematic-card" aria-labelledby="schematic-heading">
+      <h2 id="schematic-heading">Circuit: Common-Emitter Amplifier</h2>
+
+      <svg id="circuit-schematic" class="schematic" viewBox="0 0 420 470" role="img"
+           aria-labelledby="schematic-title schematic-desc" xmlns="http://www.w3.org/2000/svg">
+        <title id="schematic-title">NPN common-emitter voltage-divider bias circuit</title>
+        <desc id="schematic-desc">VCC feeds R1 and RC. R1 connects to the base node, where R2 returns to ground. RC feeds the collector of the NPN transistor. RE connects the emitter to ground. Both R2 and RE terminate at ground.</desc>
+
+        <!-- VCC rail -->
+        <line class="schematic-wire" x1="150" y1="50" x2="283" y2="50"></line>
+        <g id="schematic-vcc">
+          <circle class="schematic-node" cx="283" cy="50" r="4.5"></circle>
+          <text class="schematic-label" x="283" y="28" text-anchor="middle">VCC</text>
+        </g>
+
+        <!-- R1: VCC to base node -->
+        <g id="schematic-r1">
+          <line class="schematic-wire" x1="150" y1="50" x2="150" y2="95"></line>
+          <polyline class="schematic-component" points="150,95 160,105 140,121 160,137 140,153 160,169 150,175"></polyline>
+          <line class="schematic-wire" x1="150" y1="175" x2="150" y2="255"></line>
+          <text class="schematic-label" x="132" y="138" text-anchor="end">R1</text>
+        </g>
+
+        <!-- R2: base node to ground -->
+        <g id="schematic-r2">
+          <line class="schematic-wire" x1="150" y1="255" x2="150" y2="300"></line>
+          <polyline class="schematic-component" points="150,300 160,310 140,326 160,342 140,358 160,374 150,380"></polyline>
+          <line class="schematic-wire" x1="150" y1="380" x2="150" y2="415"></line>
+          <text class="schematic-label" x="132" y="344" text-anchor="end">R2</text>
+        </g>
+
+        <!-- RC: VCC to collector -->
+        <g id="schematic-rc">
+          <line class="schematic-wire" x1="283" y1="50" x2="283" y2="95"></line>
+          <polyline class="schematic-component" points="283,95 293,105 273,121 293,137 273,153 293,169 283,175"></polyline>
+          <line class="schematic-wire" x1="283" y1="175" x2="283" y2="205"></line>
+          <text class="schematic-label" x="302" y="138">RC</text>
+        </g>
+
+        <!-- Q1: NPN transistor -->
+        <g id="schematic-q1">
+          <circle class="schematic-body" cx="272" cy="255" r="48"></circle>
+          <line class="schematic-wire" x1="150" y1="255" x2="245" y2="255"></line>
+          <line class="schematic-wire" x1="245" y1="228" x2="245" y2="282"></line>
+          <line class="schematic-wire" x1="245" y1="240" x2="283" y2="205"></line>
+          <line class="schematic-wire" x1="245" y1="270" x2="283" y2="305"></line>
+          <polygon id="schematic-emitter-arrow" class="schematic-arrow" points="281,303 266.3,298.9 274.7,289.1"></polygon>
+          <text class="schematic-label" x="332" y="250">Q1</text>
+          <text class="schematic-label-sub" x="332" y="268">NPN</text>
+        </g>
+
+        <!-- RE: emitter to ground -->
+        <g id="schematic-re">
+          <line class="schematic-wire" x1="283" y1="305" x2="283" y2="320"></line>
+          <polyline class="schematic-component" points="283,320 293,330 273,346 293,362 273,378 293,394 283,400"></polyline>
+          <line class="schematic-wire" x1="283" y1="400" x2="283" y2="415"></line>
+          <text class="schematic-label" x="302" y="364">RE</text>
+        </g>
+
+        <!-- Ground symbols -->
+        <g id="schematic-ground-r2">
+          <line class="schematic-wire" x1="150" y1="415" x2="150" y2="422"></line>
+          <line class="schematic-wire" x1="136" y1="422" x2="164" y2="422"></line>
+          <line class="schematic-wire" x1="141" y1="428" x2="159" y2="428"></line>
+          <line class="schematic-wire" x1="146" y1="434" x2="154" y2="434"></line>
+          <text class="schematic-label-sub" x="150" y="452" text-anchor="middle">GND</text>
+        </g>
+
+        <g id="schematic-ground-re">
+          <line class="schematic-wire" x1="283" y1="415" x2="283" y2="422"></line>
+          <line class="schematic-wire" x1="269" y1="422" x2="297" y2="422"></line>
+          <line class="schematic-wire" x1="274" y1="428" x2="292" y2="428"></line>
+          <line class="schematic-wire" x1="279" y1="434" x2="287" y2="434"></line>
+          <text class="schematic-label-sub" x="283" y="452" text-anchor="middle">GND</text>
+        </g>
+
+        <!-- Base node junction -->
+        <circle class="schematic-node" cx="150" cy="255" r="4.5"></circle>
+      </svg>
+
+      <p class="schematic-caption">Static topology of the voltage-divider bias circuit. Component values are taken from the form above.</p>
+    </section>
+
     {% if result %}
     <section class="card results" aria-live="polite">
       <div class="result-heading">

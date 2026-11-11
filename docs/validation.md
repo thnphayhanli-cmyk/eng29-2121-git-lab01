@@ -124,7 +124,7 @@ Command:
 Result:
 
 ```text
-Ran 22 tests in 0.054s
+Ran 24 tests in 0.056s
 
 OK
 ```
@@ -132,7 +132,7 @@ OK
 Breakdown:
 
 - 11 engineering tests in `tests/test_dc_bias.py`
-- 11 Flask HTTP tests in `tests/test_web.py`
+- 13 Flask HTTP tests in `tests/test_web.py`
 
 ## 5. Browser Demonstration — 2026-11-11
 
@@ -152,6 +152,7 @@ and exercised at `http://127.0.0.1:5000/` in the in-app browser:
 | `R2 = 5000 Ω` | Cutoff warning; result labeled as invalid forward-active output |
 | `RC = 10000 Ω` | Saturation warning; result labeled as invalid forward-active output |
 | kΩ input `100 / 22 / 2.2 / 1` | Same active operating point as the default Ω values; normalized line shows `100,000 Ω (100 kΩ)` |
+| Circuit schematic | Static inline SVG renders VCC, R1, R2, RC, Q1 (NPN), RE, and both ground symbols; the emitter arrow points outward from the base; no horizontal overflow at 1296 px; results view keeps the schematic |
 
 ## 6. Scope Note
 

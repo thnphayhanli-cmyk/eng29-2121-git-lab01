@@ -222,6 +222,69 @@ button:focus-visible {
   font-size: 0.9rem;
 }
 
+.schematic-card {
+  text-align: center;
+}
+
+.schematic {
+  display: block;
+  width: 100%;
+  max-width: 460px;
+  height: auto;
+  margin: 0 auto;
+  color: var(--ink);
+}
+
+.schematic-wire {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.schematic-component {
+  fill: none;
+  stroke: var(--blue);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.schematic-body {
+  fill: #eaf3fa;
+  stroke: var(--blue);
+  stroke-width: 2.5;
+}
+
+.schematic-node {
+  fill: currentColor;
+}
+
+.schematic-arrow {
+  fill: var(--blue);
+}
+
+.schematic-label {
+  fill: currentColor;
+  font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.schematic-label-sub {
+  fill: var(--muted);
+  font-family: "Segoe UI", Tahoma, Arial, sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.schematic-caption {
+  margin: 14px 0 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
 .notes {
   color: var(--muted);
 }

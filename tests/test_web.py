@@ -14,6 +14,18 @@ DEFAULT_PAYLOAD = {
     "resistor_unit": "ohm",
 }
 
+SCHEMATIC_IDS = (
+    "schematic-vcc",
+    "schematic-r1",
+    "schematic-r2",
+    "schematic-rc",
+    "schematic-re",
+    "schematic-q1",
+    "schematic-emitter-arrow",
+    "schematic-ground-r2",
+    "schematic-ground-re",
+)
+
 
 class TestWeb(unittest.TestCase):
 
@@ -31,6 +43,23 @@ class TestWeb(unittest.TestCase):
         self.assertIn('name="vbe"', body)
         self.assertIn('name="resistor_unit"', body)
         self.assertIn('value="100000"', body)
+
+    def test_get_index_shows_circuit_schematic(self):
+        response = self.client.get("/")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn('id="circuit-schematic"', body)
+        self.assertIn("NPN common-emitter voltage-divider bias circuit", body)
+        for marker in SCHEMATIC_IDS:
+            self.assertIn(f'id="{marker}"', body)
+
+    def test_post_result_keeps_circuit_schematic(self):
+        response = self.client.post("/calculate", data=DEFAULT_PAYLOAD)
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        self.assertIn('id="circuit-schematic"', body)
+        for marker in SCHEMATIC_IDS:
+            self.assertIn(f'id="{marker}"', body)
 
     def test_post_valid_ohm_values_returns_results(self):
         response = self.client.post("/calculate", data=DEFAULT_PAYLOAD)

@@ -7,6 +7,7 @@
 ## ขอบเขตของ Lab 02
 
 - รับค่า `VCC`, `R1`, `R2`, `RC`, `RE`, `β`, `VBE`
+- แสดงแผนภาพวงจร NPN Common-Emitter แบบ Voltage-Divider Bias (VCC, R1, R2, RC, RE, Q1, Ground) เป็นภาพ Static
 - คำนวณ `VB`, `VE`, `VC`, `VCE`, `IC` พร้อมแสดง `IB` และ `IE` ด้วย Python Backend
 - ตรวจสอบข้อมูลนำเข้าและแสดงข้อความ Error ที่อ่านได้
 - แจ้ง Warning เมื่อผลอยู่นอก Forward-Active Region (Cutoff / Saturation)
@@ -98,7 +99,7 @@ python -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-ผลที่คาดหวัง: `Ran 22 tests` และ `OK`
+ผลที่คาดหวัง: `Ran 24 tests` และ `OK`
 
 ## ค่าเริ่มต้นสำหรับสาธิต
 
