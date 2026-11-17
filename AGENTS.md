@@ -2,9 +2,15 @@
 
 ## Project Scope
 
-This repository contains the ENG29 2121 Lab 02 BJT common-emitter DC bias web app. The scope is deliberately narrow: voltage-divider bias, forward-active approximation, DC operating point only.
+This repository contains the ENG29 2121 Lab 02 / Lab 03 BJT common-emitter DC bias web app. The scope is deliberately narrow: three single-supply bias modes, forward-active approximation, DC operating point only.
 
-Do not add AC analysis, transient analysis, Bode plots, signal generators, SPICE/ngspice, DC load lines, FETs, additional bias templates, a circuit editor, a database, authentication, or a JavaScript framework.
+Supported modes:
+
+- Voltage Divider Bias
+- Fixed Bias
+- Emitter Bias
+
+Do not add AC analysis, transient analysis, Bode plots, signal generators, SPICE/ngspice, DC load lines, FETs, further bias templates beyond these three, a circuit editor, a database, authentication, or a JavaScript framework.
 
 ## Architecture Rules
 
@@ -18,21 +24,28 @@ Do not add AC analysis, transient analysis, Bode plots, signal generators, SPICE
 ## Naming and Types
 
 - Use unit suffixes in engineering names: `_v`, `_a`, `_ohm`.
-- Keep `BiasInput` and `BiasResult` as frozen dataclasses.
-- Validation errors use field keys `vcc`, `r1`, `r2`, `rc`, `re`, `beta`, `vbe`.
+- Keep `BiasInput`, `BiasResult`, `FixedBiasInput`, and `EmitterBiasInput` as frozen dataclasses.
+- Validation errors use field keys `vcc`, `r1`, `r2`, `rb`, `rc`, `re`, `beta`, `vbe`.
 - Region strings are exactly `Active`, `Cutoff`, or `Saturation`.
+- Every mode returns the common result dictionary with keys `mode`, `vb_v`, `ve_v`, `vc_v`, `vce_v`, `ib_a`, `ic_a`, `ie_a`, `region`, and `warnings`.
 
 ## Validation
 
-Required validation follows the Lab 02 handout:
+Required validation follows the Lab 02 / Lab 03 handouts:
 
 - Missing/blank or non-numeric fields.
 - Non-finite numeric input.
 - `VCC <= 0`.
-- Any of `R1`, `R2`, `RC`, `RE <= 0`.
+- Any resistance used by the selected mode `<= 0`.
 - `beta <= 0`.
 
 Do not add a VBE range restriction. Do not require the circuit to be in the active region. Out-of-region operation is a warning, not an input error.
+
+The Lab 03 warning criteria are:
+
+- `IB <= 0` → `Cutoff`
+- Otherwise `VCE <= 0.2 V` → `Saturation`
+- Otherwise → `Active`
 
 ## Testing
 

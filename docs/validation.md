@@ -1,6 +1,57 @@
-# Validation — Lab 02 DC Bias
+# Validation — Lab 03 BJT DC Bias Web App
 
-## 1. Independent Hand Calculation
+## 1. Method and Environment (วิธีตรวจจริง)
+
+- Flask was served at `http://127.0.0.1:5001/`. Port 5000 had a stale Lab 02 Flask process, so port 5001 was used for every case in this run.
+- **Playwright MCP: NOT RUN** — there is no `opencode.json` / `opencode.jsonc` in the project root and no Playwright MCP server configured, so the Playwright MCP browser tools were unavailable. This is the fallback path allowed by handout section **05 / Connect the browser MCP**.
+- The method actually used was **OpenCode Browser** (in-app Chromium). For each case: navigate → snapshot → select the mode → fill the fields → click **Calculate DC Bias** → read the newly rendered page. Values were read from the page's results table, not from source code or `curl`.
+- No browser console errors were observed on the checked pages.
+- Tolerance from handout section **06 / Browser acceptance**: compare with the **unrounded independent reference**; `|ΔIC| ≤ 0.01 mA` and `|ΔVCE| ≤ 0.02 V`. The UI shows two decimal places.
+- The Lab 02 Divider result was recorded before the change (`IC 1.230 mA`, `VCE 8.052 V`) and is unchanged after it.
+
+## 2. A1–A5 Acceptance Table (ตารางตามใบงานข้อ 06)
+
+Common inputs for A1–A5: `VCC = 12 V`, `RC = 2.2 kΩ (2,200 Ω)`, `β = 100`, `VBE = 0.70 V`; resistor unit `Ω` unless stated otherwise. Expected values were calculated independently **before** the browser run; the calculations are in sections 3–6.
+
+| Case | Mode and inputs | Expected before run (unrounded reference) | Observed in browser, with units | Method | Status |
+|---|---|---|---|---|---|
+| **A1** | Divider (unchanged Lab 02 case): `R1 = 100 kΩ`, `R2 = 22 kΩ`, `RE = 1 kΩ` | `IC 1.229858 mA`, `VCE 8.052155 V` | `IC 1.230 mA`, `VCE 8.052 V`, region `Active` — matches the pre-change Lab 02 result | OpenCode Browser | **PASS** |
+| **A2** | Fixed: `RB = 1 MΩ`; **no `RE` field submitted** | `IC 1.130000 mA`, `VCE 9.514000 V` | `IC 1.130 mA`, `VCE 9.514 V`, region `Active`. Form fields were `mode, vcc, rb, rc, beta, vbe, resistor_unit` — no `re` field | OpenCode Browser | **PASS** |
+| **A3** | Emitter: `RB = 1 MΩ`, `RE = 1 kΩ` | `IC 1.026340 mA`, `VCE 8.705450 V` | `IC 1.026 mA`, `VCE 8.705 V`, region `Active`. Form had `input[name="re"]` with value `1000`; audit line showed `RE = 1,000 Ω (1 kΩ)` | OpenCode Browser | **PASS** |
+| **A4** | Emitter: same as A3 but only `RE` changed to `2 kΩ` | Prediction **before run**: `IC` decreases (reason in §2.1). Reference `IC 0.940100 mA`, `VCE 8.032779 V` | `IC 0.940 mA` (decreased from A3), `VCE 8.033 V`, region `Active`; audit line showed `RE = 2,000 Ω (2 kΩ)` | OpenCode Browser | **PASS** |
+| **A5** | Fixed: `RB = 0` | Flask validation error naming `RB` and the mode; no result table; no stale result from a previous case | Alert `Please fix the following:` / `Fixed Bias: RB must be greater than zero.`; no results section, no results table, no old result text anywhere on the page. Flask-side HTTP 400 confirmed separately with the existing test client | OpenCode Browser (+ Flask test client for HTTP status) | **PASS** |
+
+Tolerance check against the unrounded references: A1 `ΔIC 0.000142 mA`, `ΔVCE 0.000155 V`; A2 `0.000000 mA`, `0.000000 V`; A3 `0.000340 mA`, `0.000450 V`; A4 `0.000100 mA`, `0.000221 V` — all below `0.01 mA` / `0.02 V`. Deltas are rounding-only.
+
+### 2.1 A4 — prediction recorded before the run
+
+Prediction: **IC will decrease** when `RE` changes from `1 kΩ` to `2 kΩ`, while `VCC, RB, RC, β, VBE` stay the same.
+
+Reason: for Emitter bias `IB = (VCC − VBE) / [RB + (β + 1)RE]`. The denominator rises from `1,000,000 + 101·1,000 = 1,101,000 Ω` to `1,000,000 + 101·2,000 = 1,202,000 Ω` while the numerator stays `11.3 V`, so `IB` falls from `10.263 µA` to `9.401 µA` and `IC = β·IB` falls. The observed `IC 0.940 mA` confirms the predicted direction.
+
+Note on reading A4: the first immediate read after clicking was still the previous page state, so the page was re-read after navigation completed; that final state showed `RE = 2,000 Ω (2 kΩ)` with the new values. The evidence below uses the post-navigation page state.
+
+### 2.2 Evidence copied from the browser pages
+
+A4 — heading, audit line and result rows:
+
+```text
+Emitter DC Operating Point
+Resistances used: RB = 1,000,000 Ω (1,000 kΩ), RC = 2,200 Ω (2.2 kΩ), RE = 2,000 Ω (2 kΩ)
+VCE | 8.033 | V
+IC  | 0.940 | mA
+```
+
+A5 — error alert text:
+
+```text
+Please fix the following:
+Fixed Bias: RB must be greater than zero.
+```
+
+For A5 the page reported `active mode: Fixed Bias`, `rbValue: "0"`, `hasResult: false`, `hasResultsTable: false`, and no occurrence of `DC Operating Point` in the page text. The message is the Flask validation error rendered in the form alert (the mode prefix is added by the template); Flask itself returns HTTP 400 for this input.
+
+## 3. Independent Hand Calculation — Divider (unchanged)
 
 Default example:
 
@@ -73,47 +124,162 @@ VCE = VC − VE
     = 8.052155350 V
 ```
 
-## 2. Reference Comparison
+## 4. Independent Hand Calculation — Fixed Bias
 
-The “App value” column comes from `dc_bias.calculate_dc_bias()` with the default input.
+Default example:
 
-| Quantity | Hand value | App value | Difference | Result |
-|---|---:|---:|---:|---|
-| VTH | 2.163934 V | 2.163934 V | 0.000000 V | Pass |
-| RTH | 18032.786885 Ω | 18032.786885 Ω | 0.000000 Ω | Pass |
-| IB | 12.298581 µA | 12.298581 µA | 0.000000 µA | Pass |
-| IC | 1.229858 mA | 1.229858 mA | 0.000000 mA | Pass |
-| IE | 1.242157 mA | 1.242157 mA | 0.000000 mA | Pass |
-| VE | 1.242157 V | 1.242157 V | 0.000000 V | Pass |
-| VB | 1.942157 V | 1.942157 V | 0.000000 V | Pass |
-| VC | 9.294312 V | 9.294312 V | 0.000000 V | Pass |
-| VCE | 8.052155 V | 8.052155 V | 0.000000 V | Pass |
+```text
+VCC = 12 V
+RB  = 1000000 Ω
+RC  = 2200 Ω
+β   = 100
+VBE = 0.70 V
+```
 
-The automated reference tests are:
+```text
+IB = (VCC − VBE) / RB
+   = (12 − 0.70) / 1000000
+   = 0.0000113 A
+   = 11.300 µA
 
-- `test_default_operating_point_matches_hand_calculation`
-- `test_independent_ie_formula_matches_module` — uses the algebraically rearranged form `IE = (VTH − VBE) / (RTH/(β+1) + RE)`.
+IC = β · IB
+   = 100 · 0.0000113
+   = 0.00113 A
+   = 1.130 mA
 
-## 3. Validation Cases
+IE = (β + 1) · IB
+   = 101 · 0.0000113
+   = 0.0011413 A
+   = 1.141 mA
 
-| Case | Input change | Expected result |
+VE = 0 V
+VB = VBE = 0.700 V
+
+VC = VCC − IC · RC
+   = 12 − 0.00113 · 2200
+   = 12 − 2.486
+   = 9.514 V
+
+VCE = VC − VE
+    = 9.514 V
+```
+
+Browser result: `VB 0.700 V`, `VE 0.000 V`, `VC 9.514 V`, `VCE 9.514 V`, `IC 1.130 mA`, `IB 11.300 µA`, `IE 1.141 mA`, region `Active`.
+
+## 5. Independent Hand Calculation — Emitter Bias
+
+Default example:
+
+```text
+VCC = 12 V
+RB  = 1000000 Ω
+RC  = 2200 Ω
+RE  = 1000 Ω
+β   = 100
+VBE = 0.70 V
+```
+
+```text
+IB = (VCC − VBE) / (RB + (β + 1) · RE)
+   = (12 − 0.70) / (1000000 + 101 · 1000)
+   = 11.3 / 1101000
+   = 0.00001026339691 A
+   = 10.263 µA
+
+IC = β · IB
+   = 100 · 0.00001026339691
+   = 0.001026339691 A
+   = 1.026 mA
+
+IE = (β + 1) · IB
+   = 101 · 0.00001026339691
+   = 0.001036603088 A
+   = 1.037 mA
+
+VE = IE · RE
+   = 0.001036603088 · 1000
+   = 1.036603088 V
+
+VB = VE + VBE
+   = 1.036603088 + 0.70
+   = 1.736603088 V
+
+VC = VCC − IC · RC
+   = 12 − 0.001026339691 · 2200
+   = 12 − 2.257947320
+   = 9.742052680 V
+
+VCE = VC − VE
+    = 9.742052680 − 1.036603088
+    = 8.705449592 V
+```
+
+Browser result: `VB 1.737 V`, `VE 1.037 V`, `VC 9.742 V`, `VCE 8.705 V`, `IC 1.026 mA`, `IB 10.263 µA`, `IE 1.037 mA`, region `Active`.
+
+## 6. Independent Hand Calculation — Emitter Bias with RE = 2 kΩ (A4 reference)
+
+Only `RE` changes from section 5.
+
+```text
+VCC = 12 V
+RB  = 1000000 Ω
+RC  = 2200 Ω
+RE  = 2000 Ω
+β   = 100
+VBE = 0.70 V
+
+IB = (VCC − VBE) / [RB + (β + 1)·RE]
+   = 11.3 / (1000000 + 101·2000)
+   = 11.3 / 1202000
+   = 0.000009400998 A
+   = 9.401 µA
+
+IC = β·IB          = 0.000940100 A = 0.940100 mA
+IE = (β + 1)·IB    = 0.000949501 A = 0.950 mA
+
+VE = IE·RE         = 0.000949501 · 2000 = 1.899002 V
+VB = VE + VBE      = 2.599002 V
+VC = VCC − IC·RC   = 12 − 2.068220 = 9.931780 V
+VCE = VC − VE      = 8.032779 V
+```
+
+Browser result (A4, post-navigation page state): `VB 2.599 V`, `VE 1.899 V`, `VC 9.932 V`, `VCE 8.033 V`, `IC 0.940 mA`, `IB 9.401 µA`, `IE 0.950 mA`, region `Active`.
+
+## 7. Additional Browser Checks (E1–E4)
+
+These are checks kept from the previous round. They are deliberately **not** named A1–A5.
+
+### E1 — Input errors (Divider)
+
+| Input change | Browser alert | Result table |
 |---|---|---|
-| Default active | None | HTTP 200; Active; values in the table above |
-| Missing resistor | `R1 = ""` | HTTP 400; “Enter a value.” |
-| Non-numeric beta | `β = "abc"` | HTTP 400; “Enter a number.” |
-| Zero resistor | `R1 = 0` | HTTP 400; “R1 must be greater than zero.” |
-| Zero beta | `β = 0` | HTTP 400; “Beta must be greater than zero.” |
-| Zero VCC | `VCC = 0` | HTTP 400; “VCC must be greater than zero.” |
-| Invalid unit | `resistor_unit = "mohm"` | HTTP 400; “Choose Ω or kΩ.” |
-| kΩ equivalence | `R1=100`, `R2=22`, `RC=2.2`, `RE=1`, unit `kΩ` | Same operating point as the default Ω values |
-| Cutoff | `R2 = 5000 Ω` | HTTP 200; Cutoff warning; `VTH ≤ VBE` |
-| Saturation | `RC = 10000 Ω` | HTTP 200; Saturation warning; `VCE < 0.3 V` |
-| Negative VBE | `VBE = −0.5 V` | No validation error; calculation proceeds |
-| VBE above VCC | `VBE = 20 V` | No validation error; Cutoff warning |
+| `R1 = 0` | `Voltage Divider: R1 must be greater than zero.` | none |
+| `β = abc` | `Voltage Divider: Enter a number.` | none |
+| `β = 0` | `Voltage Divider: Beta must be greater than zero.` | none |
 
-The last two cases pin the approved decision not to add a VBE range restriction beyond the handout.
+Observed with OpenCode Browser. HTTP 400 for invalid input was also confirmed against the running Flask server / existing test client. The mode name in each message is the selected mode.
 
-## 4. Test Log
+### E2 — Cutoff warning
+
+Divider with `R2 = 5000 Ω`: badge `Cutoff`, table `IC -0.122 mA`, `VCE 12.390 V`; warning begins `IB ≤ 0 A: the base-emitter junction is not forward biased...` and states that the displayed values are forward-active equation output, not a validated operating point. No input error; HTTP 200. (OpenCode Browser)
+
+### E3 — Saturation warning
+
+Divider with `RC = 10000 Ω`: badge `Saturation`, table `IC 1.230 mA`, `VCE -1.541 V`; warning begins `VCE ≤ 0.2 V: the transistor is in saturation or at the edge of saturation...` with the same model-limitation note. No input error; HTTP 200. (OpenCode Browser)
+
+Two earlier threshold rows from `POST /calculate` checks (not a browser run): `RC = 8544 Ω → VCE 0.250 V, Active`; `RC = 8600 Ω → VCE 0.181 V, Saturation`.
+
+### E4 — Unit conversion (kΩ → Ω)
+
+Fixed Bias form switched to `kΩ` with `RB = 1000`, `RC = 2.2`. The browser audit line showed:
+
+```text
+Resistances used: RB = 1,000,000 Ω (1,000 kΩ), RC = 2,200 Ω (2.2 kΩ)
+```
+
+The same values produced `IC 1.130 mA` and `VCE 9.514 V`, matching the Ω submission in A2. (OpenCode Browser)
+
+## 8. Existing Test Log
 
 Command:
 
@@ -124,7 +290,7 @@ Command:
 Result:
 
 ```text
-Ran 24 tests in 0.056s
+Ran 24 tests
 
 OK
 ```
@@ -133,27 +299,8 @@ Breakdown:
 
 - 11 engineering tests in `tests/test_dc_bias.py`
 - 13 Flask HTTP tests in `tests/test_web.py`
+- No new `unittest` tests were added.
 
-## 5. Browser Demonstration — 2026-11-11
+## 9. Scope Note
 
-The app was run locally with:
-
-```powershell
-.\.venv\Scripts\python.exe -m flask --app app run --debug
-```
-
-and exercised at `http://127.0.0.1:5000/` in the in-app browser:
-
-| Demonstration | Observed result |
-|---|---|
-| Initial page | Form loaded with defaults; no browser-console errors |
-| Default values | Active region; VB 1.942 V, VE 1.242 V, VC 9.294 V, VCE 8.052 V, IC 1.230 mA, IB 12.299 µA, IE 1.242 mA |
-| `R1 = 0` | HTTP 400; “R1 must be greater than zero.”; no result table |
-| `R2 = 5000 Ω` | Cutoff warning; result labeled as invalid forward-active output |
-| `RC = 10000 Ω` | Saturation warning; result labeled as invalid forward-active output |
-| kΩ input `100 / 22 / 2.2 / 1` | Same active operating point as the default Ω values; normalized line shows `100,000 Ω (100 kΩ)` |
-| Circuit schematic | Static inline SVG renders VCC, R1, R2, RC, Q1 (NPN), RE, and both ground symbols; the emitter arrow points outward from the base; no horizontal overflow at 1296 px; results view keeps the schematic |
-
-## 6. Scope Note
-
-This comparison is documentation and automated-test evidence only. It is intentionally not displayed as an extra reference table in the web UI, to keep the Lab 02 scope minimal.
+This evidence covers the handout's A1–A5 browser acceptance cases plus four additional checks (E1–E4). It does not add AC, transient, SPICE, a load line, a separate cutoff/saturation solver, or new unittest / Playwright scripts. No result was fabricated: every PASS above is backed by the browser observations recorded in sections 2 and 7.

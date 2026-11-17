@@ -1,5 +1,7 @@
 # Design Note — BJT Common-Emitter DC Bias Web App
 
+> **หมายเหตุ (Lab 03):** เอกสารนี้เป็น Design Note **เดิมของ Lab 02** สำหรับวงจร Voltage-Divider Bias แบบเดียว เกณฑ์ในหัวข้อ "Region Warnings" ด้านล่าง (`VTH ≤ VBE` → Cutoff, `VCE < 0.3 V` → Saturation) เป็นเกณฑ์ของ Lab 02 **ไม่ใช่** เกณฑ์ Lab 03 ซึ่งใช้ `IB ≤ 0` → Cutoff และ `VCE ≤ 0.2 V` → Saturation พร้อมโหมด Fixed Bias และ Emitter Bias ข้อมูลปัจจุบันอยู่ใน `README.md`, `docs/validation.md` และ `docs/superpowers/specs/2026-11-17-bias-modes-design.md` เนื้อหาตั้งแต่หัวข้อ "Intent" ลงไปยังคงไว้ตามเดิมเพื่อเป็นหลักฐานทางประวัติศาสตร์
+
 ## Intent
 
 Lab 02 requires a real multi-file Flask application that computes the DC operating point of an NPN common-emitter amplifier with voltage-divider bias. The app demonstrates the separation between the browser form, Flask routing, pure Python engineering logic, Jinja templates, static CSS, and automated tests.
