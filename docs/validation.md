@@ -1,4 +1,6 @@
-# Validation — Lab 03 BJT DC Bias Web App
+# Validation — BJT Common-Emitter Web App
+
+The first nine sections are the historical Lab 03 evidence. [Lab 04 evidence](#10-lab-04--ce-simulation) is recorded separately below.
 
 ## 1. Method and Environment (วิธีตรวจจริง)
 
@@ -303,4 +305,118 @@ Breakdown:
 
 ## 9. Scope Note
 
-This evidence covers the handout's A1–A5 browser acceptance cases plus four additional checks (E1–E4). It does not add AC, transient, SPICE, a load line, a separate cutoff/saturation solver, or new unittest / Playwright scripts. No result was fabricated: every PASS above is backed by the browser observations recorded in sections 2 and 7.
+The Lab 03 run covered A1–A5 and four additional checks (E1–E4). The PASS entries in sections 2 and 7 are the observations from that run and do not validate Lab 04.
+
+## 10. Lab 04 — CE Simulation
+
+- **Reference:** ENG29 2121 Lab 04 handout from Moodle (`Lab04_BJT_Amplifier_Simulator_2-2569.html`, local course copy; not part of the submission tree).
+- **Environment:** Flask at `http://127.0.0.1:5007/` for the final responsive retest (`:5005` for the baseline and `:5004` for the model-missing check), Python from `.venv`, ngspice 47 (`ngspice_con.exe`, verified by `--version`); log shows analysis at 27 °C.
+- **Model:** no instructor starter or model was provided. The substitute reference is onsemi’s 2N3904 PSpice model, `.MODEL Q2n3904 npn`, generated August 7, 2001; it is **not instructor-approved**. The [manufacturer download](https://www.onsemi.com/download/models/lib/2n3904.lib) and [legacy onsemi download](https://www.onsemi.com/pub/Collateral/2N3904.LIB) both returned the same 977 bytes (SHA-256 `5608c109b8d68d57798557991cee506661d031916f589325fad5ed10d82ccbf7`). The file stays local; the generated deck keeps the complete `.MODEL` and continuation lines without changing parameters.
+- **Browser:** Playwright MCP **NOT RUN** (no tool available in the session). OpenCode Browser (Chromium) was used for B1–B7. Installed Chrome via DevTools was used for the exact-width B8 screenshots and layout checks.
+
+| Case | Method | Input | Expected / reference | Observed | Evidence | Status |
+|---|---|---|---|---|---|---|
+| B1 | OpenCode Browser, submitted each analytical form | Lab 03 A1/A2/A3 inputs (§2) | IC/VCE match §2 within 0.01 mA / 0.02 V | Divider 1.230 mA / 8.052 V; Fixed 1.130 mA / 9.514 V; Emitter 1.026 mA / 8.705 V; all Active | Values read from each new results table | **PASS** (fallback browser) |
+| B2 | OpenCode Browser + independent `.op` | Handout baseline, DC | VB/VE/VC/VCE/IC match ngspice `.op`; model and run status visible | VB 1.96795 V, VE 1.33638 V, VC 9.08387 V, VCE 7.74748 V, IC 1.32552 mA; Q2n3904, ngspice-47, Success | [DC screenshot](captures/lab04-before-desktop-dc.jpg); run log: 1 row | **PASS** (fallback browser) |
+| B3 | OpenCode Browser + independent `.op` | RE only: 1 → 2 kΩ | Collector current decreases, and operating-point values change | IC 1.32552 → 0.713542 mA; VCE 7.74748 → 8.99011 V. Displayed netlist uses `RE e 0 2000`. | Updated browser readout and independent DC check below | **PASS** (fallback browser) |
+| B4 | OpenCode Browser + independent `.ac` | Handout baseline, AC | Bode gain in dB and phase in degrees from `Vout/Vin`, frequency in Hz | Two 361-sample curves; 1 kHz sample: 1.7371 V/V, 4.797 dB, −179.9°. | [AC screenshot](captures/lab04-before-desktop-ac.png); raw rows and SVG comparison below | **PASS** (fallback browser) |
+| B5 | OpenCode Browser + independent `.tran` | 10 mV peak, 1 kHz | Vin/Vout versus time; inverted output near midband | Final four periods (~16–20 ms); measured 9.998 mV Vin and 17.37 mV Vout peak; output inverted, independently measured at −179.87° fundamental phase. | [10 mV transient screenshot](captures/lab04-before-desktop-tran.png); run log: 2,008 rows, 401 displayed samples per signal | **PASS** (fallback browser) |
+| B6 | OpenCode Browser + independent `.tran` | 20 mV peak, 1 kHz; only amplitude changed | Input/output amplitudes increase, based on the new `.tran` data | Vin 20 mV peak, Vout 34.74 mV peak; Vout approximately doubled and remained inverted. The vertical scale changed to fit the new samples. | [10 mV](captures/lab04-before-desktop-tran.png) / [20 mV](captures/lab04-before-desktop-tran-20mv.jpg) browser captures and independent peak-to-peak check | **PASS** (fallback browser) |
+| B7 | OpenCode Browser and Chrome DevTools; additional adapter/HTTP checks | RE = 0; missing model; real solver failure immediately after successful AC | Error with no retained Success, readouts, or plots | RE = 0: HTTP 400. Missing model: HTTP 503. Real ngspice failure: HTTP 502, Error, zero readouts and zero plots after a run with two plots. | [Solver failure capture](captures/lab04-audit-solver-failure.jpg), run log and §11 | **PASS** (fallback browser) |
+| B8 | Chrome DevTools with real browser form submissions | 1280×900 / 390×844, DC → AC → Transient | Controls, schematic and plots readable at both widths | No horizontal overflow, clipped axes, tick collisions, or schematic label collisions. Run button, units, and numeric readouts fit at both widths. Source controls appeared only for Transient. | Before/after captures and browser checks below | **PASS** after refinement (fallback browser); baseline **FAIL** |
+
+### Independent BJT cross-check
+
+The independent deck used the handout circuit with the unchanged manufacturer file via `.include 2n3904.lib` and Q1 connected directly to the collector. It did not use the web adapter's voltage-sense source:
+
+- DC: `op` and `print v(b) v(e) v(c) v(c)-v(e) @q1[ic]`. At RE = 1 kΩ, independent VB/VE/VC/VCE were 1.967953686 / 1.336383612 / 9.083865683 / 7.747482070 V, and IC was 1.325515590 mA. At 2 kΩ, VCE was 8.990107078 V and IC was 0.713541639 mA. The adapter also satisfied `VCE = VC − VE` and `IC = (VCC − VC) / RC` at DC; the displayed difference from Lab 03 is a model difference, not a rounding error.
+- AC: `ac lin 1 1k 1k`; `Vout/Vin = −1.737101486 − j0.003921840` at 1 kHz, or 4.796525971 dB at −179.870644°. A separate full 361-row sweep was compared with both rendered polylines after mapping the raw values onto the SVG axes. The maximum difference was below 0.006 SVG viewBox units (rendering rounds to 0.01).
+- Transient: `tran 10u 20m 0 10u`; `meas tran … pp v(in)` / `v(out)` over 16–20 ms. At 10 mV peak the independent peak-to-peak input/output were 19.9969/34.7361 mV; at 20 mV peak they were 39.9938/69.4721 mV. The fundamental phase was checked by time-weighted projection of the samples. The independent time-domain samples mapped onto both rendered traces within 0.006 SVG viewBox units at both amplitudes.
+- After refinement, the independently generated raw samples were mapped onto the new axis domains and compared with the HTML `<polyline>` coordinates again. All 361 per AC trace and 401 per displayed transient trace still matched, within 0.006 viewBox units at both amplitudes. The new axes change the display scale, not the solver output.
+
+### B8 before/after evidence
+
+| Browser viewport / result | Before | After |
+|---|---|---|
+| Desktop DC | [Capture](captures/lab04-before-desktop-dc.jpg) | [Capture](captures/lab04-after-desktop-dc.png) |
+| Desktop Bode | [Capture](captures/lab04-before-desktop-ac.png) | [Capture](captures/lab04-after-desktop-ac.png) |
+| Desktop transient (10 mV) | [Capture](captures/lab04-before-desktop-tran.png) | [Capture](captures/lab04-after-desktop-tran.png) |
+| Desktop transient (20 mV) | [Capture](captures/lab04-before-desktop-tran-20mv.jpg) | [Capture](captures/lab04-after-desktop-tran-20mv.png) |
+| Phone Bode | [Capture](captures/lab04-before-mobile-ac.png) | [Capture](captures/lab04-after-mobile-ac.png) |
+| Phone transient | [Capture](captures/lab04-before-mobile-tran.png) | [Capture](captures/lab04-after-mobile-tran.png) |
+| Additional final views | — | [Phone DC](captures/lab04-after-mobile-dc.png), Lab 03 [desktop](captures/lab04-after-desktop-lab03.png) / [phone](captures/lab04-after-mobile-lab03.png) |
+
+The baseline failed due to `RC`/`Cout` and `R2`/`Q1 NPN` collisions and approximately 10.4 px axis labels on phone. The final Chrome run found no intersecting SVG text boxes in the CE diagram or any of the three Lab 03 schematics, at either width. The on-screen plot ticks are about 12.2 CSS px at both widths. In the fallback in-app browser, `Tab` moved from RE to RL, `Enter` ran DC, and focus reached the result heading. Switching from kΩ to Ω kept `R1 = 100`, changed the suffix to Ω, announced that the number was not converted, and marked the existing result **Previous run**. In the Chrome invalid-RE check after a successful transient run, focus moved to RE and the response showed Error with no retained trace.
+
+Supplemental checks: at 320 px, the `10M` and `100M` tick labels initially overlapped; hiding the penultimate label at that width preserved the grid and cleared the collision on retest. The 768 px Bode view had no overflow or tick collisions. Chrome touch emulation tapped the 44 px Run button at 390 px and successfully reached the DC result heading. Selected text/background contrast measurements ranged from 6.67:1 (input units) to 14.45:1 (result heading), including 9.46:1 for plot ticks. This was not a full screen-reader or physical-device audit.
+
+### Final UI review
+
+- **Impeccable UX critique:** 22/40 before refinement, 27/40 on the first redesign, and **30/40** on the final independent review. Clearer unit handling, mobile navigation, and plot descriptions improved the measured score; it did not reach 36/40. Lab 03 mode changes still load that circuit's defaults rather than retaining an unsaved draft. The charts expose a measured summary in Chrome's accessibility tree, not a point-by-point spoken trace.
+- **Impeccable technical audit:** **18/20** (accessibility 3/4, performance 4/4, theming 3/4, responsiveness 4/4, implementation integrity 4/4). The final Ready route scored 100 accessibility and 100 best practices in the in-app Lighthouse audit. Responsive checks used actual form submissions in Chrome, including keyboard and simulated touch. The UI uses local assets and a fixed light bench/dark readout palette, not a user-selectable theme.
+- **Detector scope:** the changed-file scan included the handout and could not resolve the Jinja stylesheet in source, causing false heading-hierarchy findings. Rendered checks did not reproduce those findings. The detector's “nested cards” warning refers to the deliberately grouped `<dl>` readouts; it is not a schematic, layout, or results defect. Its mobile wrapping and tick-clearance findings were addressed.
+
+### Model-independent checks
+
+With `NGSPICE_BIN` set, all 34 tests passed, including the original 24. The passive ngspice probe intentionally replaces Q1 with a resistor **only inside the test**. It exercised `.op` (1 row), `.ac` (361 rows) and `.tran` (2,008 rows in the 1 kHz check), verified DC probe orientation against a resistor-network calculation, rejected truncated raw output, and checked the transient time scale and measured input amplitude. A separate passive RC check compares parsed AC gain and phase with the RC transfer function. This is adapter evidence only and does not satisfy B2–B6.
+
+Impeccable critique, refinement and technical audit were conducted against the working interface. The student’s own review and GitHub URL/commit SHA are pending.
+
+## 11. Final engineering and submission audit
+
+Fresh runs used Python 3.14.2, Flask 3.1.3 and ngspice 47 on Windows. OpenCode Browser and installed Chrome at 1280×900 and 390×844 checked the current app on `127.0.0.1:5008`. B1–B8 were re-exercised using those real browsers; Playwright MCP remained **NOT RUN**. The SVGs, generated netlists, and browser results were checked independently of the prior reports.
+
+### Engineering checks
+
+| Item | Fresh audit evidence |
+|---|---|
+| Schematics vs. equations | Lab 03 Divider: R1 from supply to base, R2 from base to ground, RE in the emitter path. Fixed: RB from supply to base, emitter directly grounded. Emitter: RB from supply to base with RE to ground. RC feeds the collector in all three. The Lab 04 drawing adds Cin from Vin to base, Cout from collector to Vout, and RL from Vout to ground, with no emitter bypass. The generated netlist inserts an ideal 0 V `VSENSE` in series with Q1's collector as a current probe; it is electrically equivalent to the drawn wire. Q1 is NPN, with the emitter arrow facing outward. |
+| Canonical units | The live default Ω and kΩ submissions generated identical SI netlists and DC results. VCC = 12 V; R1/R2/RC/RE/RL = 100,000/22,000/2,200/1,000/10,000 Ω; Cin/Cout = 10 µF = 10⁻⁵ F. `SIN` receives source amplitude in V peak and frequency in Hz. Raw vector names and dimensions are checked; display converts A to mA/µA and s/V to ms/mV as labeled. Bode gain uses V/V and dB; phase is in degrees. |
+| Lab 03 regression | Independent base-node KCL and collector/emitter branch calculations matched all seven live readouts in each mode to within 0.0005 in the displayed unit. VCE/IC: Divider 8.052 V / 1.230 mA; Fixed 9.514 V / 1.130 mA; Emitter 8.705 V / 1.026 mA. The fixed emitter was 0 V; positive IC and the Active warning criteria remained unchanged. |
+| Lab 04 DC consistency | With RE = 1 kΩ, independent `.op` gave VB = 1.967953686 V, VE = 1.336383612 V, VC = 9.083865683 V, VCE = 7.747482070 V and IC = 1.325515590 mA. VBE ≈ 0.632 V, VC > VB, and Vout = 0 V at DC. Positive IC matches `(VCC − VC)/RC`; divider-derived IB ≈ 10.868 µA and `IB + IC − VE/RE` was below 2 pA in magnitude for both RE values. Changing only RE to 2 kΩ yielded 8.990107078 V / 0.713541639 mA. |
+| AC gain and sweep | ngspice independently emitted 361 samples from 0.1 Hz to 100 MHz, spaced 0.025 decades apart. At 1 kHz, `Vout/Vin = −1.737101486 − j0.003921840` → 1.737105913 V/V, 4.796525971 dB and −179.870644°. Each live SVG trace was checked against the independent complex data; no point differed by more than 0.005 SVG viewBox units. |
+| Transient amplitude and frequency | At 10 mV peak / 1 kHz: 9.99845 mV Vin and 17.36807 mV Vout; frequency measured from positive-going Vin zero crossings was 1,000 Hz and the complex projection of the fundamental gave −179.8707°. Changing amplitude to 20 mV gave 19.99690 / 34.73607 mV. Changing only frequency to 2 kHz moved the browser window from 16–20 to 8–10 ms and measured 2,000 Hz, 17.36816 mV Vout, and −179.9386°. All 401 displayed samples per transient trace matched the independent data within 0.005 SVG units in each of the three cases. |
+| Rejected runs | B7 confirmed HTTP 400 after a zero-RE submission and HTTP 502 after replacing only a scratch copy of the model with a declaration referencing an undefined parameter. The latter followed a successful AC run in the same tab; the log contained `Undefined parameter` and the failed response showed no plots or numeric readouts. The genuine model was restored. Local HTTP checks confirmed 503 for a missing engine after success; actual adapter runs exercised timeout and missing-result-file branches. |
+| Defects corrected | Extreme finite Lab 03 inputs previously produced `nan`/`inf` readouts or a misleading finite Cutoff after a denominator overflow. They now return a separate HTTP 422 calculation error with no region or numeric result. Lab 03 validation ranges and equations are unchanged. The SPICE parser previously accepted altered raw vector dimensions and a sweep with missing interior samples; the regression suite now rejects wrong dimensions, missing rows, and off-grid frequencies. |
+| Reproduction and repository | Used the README PowerShell download against the manufacturer endpoint; the Windows clean-copy exercise used only the candidate Git tree, the existing verified Python environment, ngspice, and the external model. Flask loaded and returned HTTP 200 for all three analyses; `pip check` reported no broken requirements. All **35 tests passed** in the working tree and clean copy, including all 34 pre-audit tests. macOS/Linux instructions were not executed. An old personal path was removed from a historical design note in the current tree; no history was rewritten. A scan of the candidate files found no personal-path or credential literals, vendored model, virtual environment, or generated raw/deck/log output. |
+
+### Independent reproduction (local only)
+
+Save the following as `check.cir` in a scratch folder alongside a separately downloaded, checksum-verified `2n3904.lib`. Do not add the vendor file or an inlined run deck to Git. Use `.include` here so the solver reads the original manufacturer file, not the app's parser output.
+
+```spice
+Lab 04 independent reference (no collector sense source)
+VS p 0 12
+R1 p b 100k
+R2 b 0 22k
+RC p c 2.2k
+RE e 0 1k
+RL out 0 10k
+CIN in b 10u
+COUT c out 10u
+VIN in 0 DC 0 AC 1 SIN(0 10m 1k)
+Q1 c b e Q2n3904
+.include 2n3904.lib
+.end
+```
+
+Before `.end`, insert a `.control`/`.endc` block containing `set numdgt=16`, `set wr_singlescale`, one of the command sequences below, and `quit`. Run `ngspice -n -b -o check.log check.cir` (or the configured console executable).
+
+- DC: `op`, then `print v(b) v(e) v(c) v(c)-v(e) @q1[ic] v(out)`. Repeat with only RE changed to 2 kΩ.
+- AC: `ac dec 40 .1 100Meg`, `let gain = v(out)/v(in)`, then `wrdata ac.dat gain`.
+- Transient: `tran 10u 20m 0 10u`, then `wrdata tran.dat v(in) v(out)`. Read half peak-to-peak over the last four periods and frequency from upward Vin zero crossings. For 2 kHz use `SIN(0 10m 2k)` with `tran 5u 10m 0 5u`.
+- Solver-failure reproduction: configure the app to use a separate temporary copy of the model and keep that path through both submissions. Run AC successfully, then replace the copy's declaration with a same-name NPN declaration that refers to an undefined parameter. Rerun AC and restore the genuine copy afterward. Do not edit the manufacturer's download.
+
+### Handout rubric (provisional, not an instructor grade)
+
+| Criterion | Demonstrated | Evidence / limit |
+|---|---:|---|
+| Lab 03 continuity | 1/1 | All three real browser paths and all seven quantities compared. |
+| ngspice integration | 3/3 | Genuine `.op` and preserved raw dimensions, DC KCL/KVL, model and run provenance, tested failure paths. Credit assumes acceptance of the disclosed substitute. |
+| AC and transient | 2/2 | Independent complex and time-domain data match the actual plotted samples. |
+| UI and Impeccable | 2/2 | Before/after evidence, actual desktop and phone runs, and recorded critique/audit scores. |
+| Browser acceptance | 1/1 | B1–B8 executed in the fallback browsers; Playwright MCP was unavailable and is not claimed. |
+| GitHub and reproducibility | 0/1 pending | Clean-copy execution and reproduction steps are present, but this audit did not create a Lab 04 commit or push one. Repo URL and Lab 04 SHA remain submission items. |
+| **Subtotal** | **9/10 provisional** | Ready for review and selective staging after approval. The student still needs to verify the evidence personally and the instructor/TA must decide whether the substitute and browser fallback satisfy their grading requirements. |
+
+Manufacturer permission limit: the onsemi download contains a Symmetry Design Systems proprietary-software notice with commercial use or resale restricted. Public download is not a redistribution grant. No redistribution permission was verified, so the library and any inlined decks remain local. The instructor handout is also local and excluded from the prospective submission tree.

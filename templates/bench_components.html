@@ -1,0 +1,36 @@
+{% macro parameter(name, label, unit='', required=true) -%}
+<div class="field">
+  <label for="field-{{ name }}">{{ label }}</label>
+  <div class="input-shell">
+    <input id="field-{{ name }}" name="{{ name }}" type="text" value="{{ values[name] }}" inputmode="decimal"
+           {% if required %}required{% endif %}{% if errors.get(name) %} aria-invalid="true"{% endif %}
+           {% if unit or errors.get(name) %}aria-describedby="{% if unit %}unit-{{ name }}{% endif %}{% if unit and errors.get(name) %} {% endif %}{% if errors.get(name) %}error-{{ name }}{% endif %}"{% endif %}>
+    {% if unit == 'resistance' %}
+    <span class="input-unit" id="unit-{{ name }}" data-resistor-unit>{{ 'Ω' if values.resistor_unit == 'ohm' else 'kΩ' if values.resistor_unit == 'kohm' else '—' }}</span>
+    {% elif unit %}<span class="input-unit" id="unit-{{ name }}">{{ unit }}</span>{% endif %}
+  </div>
+  {% if errors.get(name) %}<span class="field-error" id="error-{{ name }}">{{ errors[name] }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro resistor_selector() -%}
+<div class="field">
+  <label for="resistor-unit">Resistor unit</label>
+  <select id="resistor-unit" name="resistor_unit" data-resistor-select
+          aria-describedby="unit-behavior{% if errors.resistor_unit %} error-resistor-unit{% endif %}"
+          {% if errors.resistor_unit %}aria-invalid="true"{% endif %}>
+    {% if values.resistor_unit not in ('ohm', 'kohm') %}<option value="" selected>Select unit</option>{% endif %}
+    <option value="ohm" {% if values.resistor_unit == 'ohm' %}selected{% endif %}>Ω · ohm</option>
+    <option value="kohm" {% if values.resistor_unit == 'kohm' %}selected{% endif %}>kΩ · kiloohm</option>
+  </select>
+  <p class="unit-behavior" id="unit-behavior" role="status">Changing units does not convert the entered resistor values.</p>
+  {% if errors.resistor_unit %}<span class="field-error" id="error-resistor-unit">{{ errors.resistor_unit }}</span>{% endif %}
+</div>
+{%- endmacro %}
+
+{% macro readout(label, caption, value, unit, channel='') -%}
+<div class="readout{% if channel %} channel-{{ channel }}{% endif %}">
+  <dt>{{ label }}{% if caption %}<span class="readout-caption">{{ caption }}</span>{% endif %}</dt>
+  <dd><span class="reading">{{ value }}</span>{% if unit %}<span class="reading-unit">{{ unit }}</span>{% endif %}</dd>
+</div>
+{%- endmacro %}

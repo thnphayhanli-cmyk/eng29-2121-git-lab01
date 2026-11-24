@@ -1,0 +1,214 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CE Amplifier Simulation · Lab 04</title>
+  <link rel="icon" href="{{ url_for('static', filename='bench.svg') }}" type="image/svg+xml">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='simulation.js') }}" defer></script>
+</head>
+<body>
+  {% from 'bench_components.html' import parameter, resistor_selector, readout with context %}
+  {% macro plot(chart, plot_id) %}
+  <figure class="spice-plot{% if chart.is_scope %} scope-plot{% endif %}">
+    <figcaption id="{{ plot_id }}">{{ chart.title }} <span>{{ chart.y_label }}</span></figcaption>
+    <div class="plot-frame" role="img" aria-labelledby="{{ plot_id }} {{ plot_id }}-axis"
+         aria-describedby="{{ plot_id }}-summary">
+      <div class="plot-y-ticks" aria-hidden="true">
+        {% for tick in chart.y_ticks %}<span style="--tick:{{ tick.pct }}%">{{ tick.label }}</span>{% endfor %}
+      </div>
+      <div class="plot-screen">
+        <svg class="spice-chart" viewBox="{{ chart.view_box }}" preserveAspectRatio="none" aria-hidden="true">
+          <path class="chart-grid chart-grid-minor" d="{{ chart.minor_grid }}"/>
+          <path class="chart-grid" d="{{ chart.major_grid }}"/>
+          {% if chart.zero_line %}<path class="chart-zero" d="{{ chart.zero_line }}"/>{% endif %}
+          {% for series in chart.series %}
+            {% for points in series.segments %}
+            <polyline class="trace trace-{{ series.style }}" points="{{ points }}"/>
+            {% endfor %}
+          {% endfor %}
+        </svg>
+      </div>
+      <div class="plot-x-ticks" aria-hidden="true">
+        {% for tick in chart.x_ticks %}<span{% if tick.compact_hide %} class="tick-compact-hide"{% endif %} style="--tick:{{ tick.pct }}%">{{ tick.label }}</span>{% endfor %}
+      </div>
+      <div class="plot-x-label" id="{{ plot_id }}-axis">{{ chart.x_label }}</div>
+    </div>
+    <p class="plot-summary" id="{{ plot_id }}-summary">{{ chart.summary }}</p>
+    {% if chart.series|length > 1 %}
+    <ul class="chart-legend" aria-label="Traces">
+      {% for series in chart.series %}<li class="channel-{{ series.style }}">{{ series.name }}</li>{% endfor %}
+    </ul>
+    {% endif %}
+  </figure>
+  {% endmacro %}
+  {% set workspace = 'spice' %}
+  {% set workspace_title = 'CE Amplifier Simulation' %}
+  {% set workspace_description = 'Run the reference CE circuit in ngspice.' %}
+  <main class="page spice-workspace">
+    {% include 'instrument_header.html' %}
+    <div class="workbench">
+      <section class="control-panel" aria-labelledby="parameters-heading">
+        <header class="control-heading">
+          <h2 id="parameters-heading" tabindex="-1">Simulation controls</h2>
+          <a class="schematic-jump" href="#schematic-heading">Schematic</a>
+        </header>
+        <form id="simulation-form" data-bench-run method="post" action="{{ url_for('simulate_ce') }}">
+          <div class="field">
+            <label for="analysis-mode">Analysis mode</label>
+            <select name="analysis" id="analysis-mode" {% if errors.analysis %}aria-invalid="true" aria-describedby="error-analysis"{% endif %}>
+              {% if values.analysis not in analyses %}<option value="" selected>Select analysis</option>{% endif %}
+              {% for key, label in analyses.items() %}
+              <option value="{{ key }}" {% if key == values.analysis %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+            {% if errors.analysis %}<span class="field-error" id="error-analysis">{{ errors.analysis }}</span>{% endif %}
+          </div>
+          {{ resistor_selector() }}
+          <fieldset>
+            <legend>Supply and divider</legend>
+            <div class="form-grid three">
+              {{ parameter('vcc', 'VCC', 'V') }}
+              {{ parameter('r1', 'R1', 'resistance') }}
+              {{ parameter('r2', 'R2', 'resistance') }}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Bias and load</legend>
+            <div class="form-grid three">
+              {{ parameter('rc', 'RC', 'resistance') }}
+              {{ parameter('re', 'RE', 'resistance') }}
+              {{ parameter('rl', 'RL', 'resistance') }}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Coupling</legend>
+            <div class="form-grid">
+              {{ parameter('cin', 'Cin', 'µF') }}
+              {{ parameter('cout', 'Cout', 'µF') }}
+            </div>
+          </fieldset>
+          <fieldset id="sine-source">
+            <legend>Sine source</legend>
+            <div class="form-grid">
+              {{ parameter('amplitude', 'Amplitude', 'mV peak', false) }}
+              {{ parameter('frequency', 'Frequency', 'Hz', false) }}
+            </div>
+            <p class="field-hint">{{ "{:,}".format(frequency_range[0]) }}–{{ "{:,}".format(frequency_range[1]) }} Hz · Transient only</p>
+          </fieldset>
+          <div class="run-action">
+            <button type="submit">Run Simulation</button>
+            <p id="running-message" role="status" class="field-hint"></p>
+          </div>
+        </form>
+      </section>
+
+      <section class="measure-panel" id="run-results" aria-labelledby="result-title">
+        <header class="instrument-head">
+          <div>
+            <h2 id="result-title" tabindex="-1" {% if simulation or run_error %}data-run-landing{% endif %}>{{ analyses[values.analysis] if simulation else 'Simulation results' }}</h2>
+            {% if simulation %}
+            <p class="spice-provenance"><span>{{ simulation.version }}</span> · <span>{{ simulation.model.name }}</span> · <span>{{ '{:,}'.format(simulation.points) }} {{ 'sample' if simulation.points == 1 else 'samples' }}</span></p>
+            {% else %}<p>ngspice · CE voltage-divider reference</p>{% endif %}
+          </div>
+          {% if simulation %}<span class="badge badge-active" data-run-status data-current-result>Success</span>
+          {% elif errors or run_error %}<span class="badge badge-error" data-run-status>Error</span>
+          {% else %}<span class="badge badge-idle" data-run-status>Ready</span>{% endif %}
+        </header>
+        {% if errors %}
+        <div class="alert alert-error" role="alert">
+          ngspice was not started. Correct the marked inputs and run again.
+          <ul>
+            {% for field, message in errors.items() %}
+            {% set control = 'analysis-mode' if field == 'analysis' else 'resistor-unit' if field == 'resistor_unit' else 'field-' ~ field %}
+            <li><a href="#{{ control }}">{{ message }}</a></li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% elif run_error %}
+        <div class="alert alert-error" role="alert">{{ run_error }}</div>
+        {% if run_error.log %}
+        <details class="run-artifact"><summary>ngspice run log</summary><pre>{{ run_error.log }}</pre></details>
+        {% endif %}
+        {% elif simulation %}
+        <p class="run-provenance">
+          {{ simulation.model.reference or 'Configured transistor model' }}
+          <span>{{ simulation.model.filename }}</span>
+        </p>
+        <p class="previous-run" id="previous-run" hidden>These values are from the previous run.</p>
+        {% if values.analysis == 'dc' %}
+        {% set vb, ve, vc, vce, ic = display.rows %}
+        <dl class="readout-bank readout-leads">
+          {{ readout('VCE', 'Collector to emitter', "%.6g"|format(vce[1]), vce[2]) }}
+          {{ readout('IC', 'Collector current', "%.6g"|format(ic[1]), ic[2]) }}
+        </dl>
+        <dl class="readout-bank readout-secondary">
+          {{ readout('VB', 'Base', "%.6g"|format(vb[1]), vb[2]) }}
+          {{ readout('VE', 'Emitter', "%.6g"|format(ve[1]), ve[2]) }}
+          {{ readout('VC', 'Collector', "%.6g"|format(vc[1]), vc[2]) }}
+        </dl>
+        <div class="comparison">
+          <h3>Analytical comparison</h3>
+          <table class="results-table">
+            <thead><tr><th scope="col">Quantity</th><th scope="col">ngspice</th><th scope="col">Analytical</th></tr></thead>
+            <tbody>
+              {% for label, value, unit, reference in display.rows %}
+              <tr><th scope="row">{{ label }}</th><td>{{ "%.6g"|format(value) }} <span>{{ unit }}</span></td><td>{{ "%.6g"|format(reference) if reference is not none else '—' }}{% if reference is not none %} <span>{{ unit }}</span>{% endif %}</td></tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          <p class="small">The analytical reference assumes β = 100 and VBE = 0.70 V. ngspice uses the model above.{% if not display.has_reference %} No valid forward-active reference is available for these inputs.{% endif %}</p>
+          <p class="small">Node voltages are relative to ground. Positive IC flows into Q1’s collector.</p>
+        </div>
+        {% elif values.analysis == 'ac' %}
+          {% set hz, gain, db, phase = display.sample %}
+          <p class="plot-context">Sample at <strong>{{ "%.6g"|format(hz) }} Hz</strong> · Vout / Vin</p>
+          <dl class="readout-bank readout-secondary">
+            {{ readout('Gain', '', "%.5g"|format(gain), 'V/V') }}
+            {{ readout('Magnitude', '', "%.4g"|format(db) if db is not none else '−∞', 'dB', 'gain') }}
+            {{ readout('Phase', '', "%.4g"|format(phase) if phase is not none else '—', '°' if phase is not none else '', 'phase') }}
+          </dl>
+          <p class="small plot-note">Phase is unwrapped to stay continuous across ±180°. No cutoff frequencies are inferred.{% if display.has_zero_gain %} Gaps mark zero gain, where dB magnitude and phase are undefined.{% endif %}</p>
+        {% else %}
+          <p class="plot-context">Source: <strong>{{ "%.6g"|format(display.amplitude_mv) }} mV peak</strong> · {{ "%.6g"|format(display.frequency_hz) }} Hz</p>
+          <dl class="readout-bank readout-secondary readout-pair">
+            {{ readout('Vin', 'Measured amplitude', "%.4g"|format(display.vin_amplitude_mv), 'mV', 'input') }}
+            {{ readout('Vout', 'Measured amplitude', "%.4g"|format(display.vout_amplitude_mv), 'mV', 'output') }}
+          </dl>
+          <p class="small plot-note">Half peak-to-peak over the last four periods. {{ display.phase_note }}</p>
+        {% endif %}
+        {% if display.charts %}
+        <div class="spice-plots{% if values.analysis == 'ac' %} bode{% endif %}">
+          {% for chart in display.charts %}{{ plot(chart, 'plot-' ~ loop.index) }}{% endfor %}
+        </div>
+        {% endif %}
+        <div class="run-evidence">
+          <details class="run-artifact"><summary>ngspice run log</summary><pre>{{ simulation.log }}</pre></details>
+          <details class="run-artifact"><summary>Netlist used for this run</summary><pre>{{ simulation.netlist }}</pre></details>
+        </div>
+        <a class="inputs-jump" href="#parameters-heading">Back to controls</a>
+        {% else %}
+        <div class="instrument-empty">
+          <h3>Ready for a measurement</h3>
+          <p>Choose DC for bias, AC for gain and phase, or Transient for waveforms.</p>
+          <p class="small">{% if model_name %}Configured model: {{ model_name }}.{% else %}The BJT model has not been configured.{% endif %}</p>
+        </div>
+        {% endif %}
+      </section>
+
+      <section class="schematic-panel" aria-labelledby="schematic-heading">
+        <header class="panel-heading"><h2 id="schematic-heading" tabindex="-1">Reference schematic</h2><span>Voltage divider</span></header>
+        <div class="schematic-surface">{% include 'ce_reference.html' %}</div>
+        <dl class="probe-key">
+          <div><dt class="signal-input-text">Vin</dt><dd>Before Cin</dd></div>
+          <div><dt class="signal-output-text">Vout</dt><dd>Across RL, after Cout</dd></div>
+        </dl>
+        <p class="schematic-caption">RE is not bypassed. All nodes share a common ground.</p>
+        <a class="inputs-jump schematic-return" href="#parameters-heading">Back to controls</a>
+      </section>
+    </div>
+    <footer class="bench-footer"><strong>Lab 04 reference</strong><span>One common-emitter amplifier. The three analytical bias modes remain separate in Lab 03.</span></footer>
+  </main>
+</body>
+</html>

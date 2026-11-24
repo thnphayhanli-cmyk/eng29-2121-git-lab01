@@ -1,0 +1,18 @@
+<header class="bench-header">
+  <div class="bench-bar">
+    <div class="bench-brand">
+      <svg viewBox="0 0 24 24" width="28" height="28" aria-hidden="true">
+        <path d="M3 13h4l3-6 4 10 3-6h4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Common-Emitter Lab <small>ENG29 2121</small></span>
+    </div>
+    <nav class="workspace-nav" aria-label="Lab workspace">
+      <a href="{{ url_for('index', mode=mode) }}" {% if workspace == 'bias' %}aria-current="page"{% endif %}>Lab 03 <span>Analytical Bias</span></a>
+      <a href="{{ url_for('simulate_ce') }}" {% if workspace == 'spice' %}aria-current="page"{% endif %}>Lab 04 <span>CE Simulation</span></a>
+    </nav>
+  </div>
+  <div class="bench-title">
+    <h1>{{ workspace_title }}</h1>
+    <p>{{ workspace_description }}</p>
+  </div>
+</header>

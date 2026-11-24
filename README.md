@@ -1,6 +1,6 @@
-# BJT Common-Emitter DC Bias Web App
+# BJT Common-Emitter Amplifier Simulator
 
-**ENG29 2121 · Lab 02 / Lab 03 · 2/2569**
+**ENG29 2121 · Lab 02–04 · 2/2569**
 
 เว็บแอปพลิเคชัน Flask สำหรับคำนวณจุดทำงาน DC (DC Operating Point) ของวงจรขยาย BJT แบบ Common-Emitter ภายใต้สมมติฐาน Forward-Active Approximation (β คงที่ และ VBE คงที่) รองรับ 3 รูปแบบไบอัสจากแหล่งจ่ายเดียว
 
@@ -14,7 +14,8 @@
 - ตรวจสอบข้อมูลนำเข้าและแสดงข้อความ Error ที่อ่านได้
 - แจ้ง Warning เมื่อ `IB ≤ 0` หรือ `VCE ≤ 0.2 V` ตามเกณฑ์ Lab 03
 - แสดงหน่วยกำกับทุกค่า และแปลง Ω/kΩ อย่างถูกต้อง
-- ไม่มี AC, Transient, Bode Plot, SPICE, FET หรือ Circuit Editor
+- **Lab 04:** เพิ่มหน้า CE Simulation สำหรับวงจร Voltage-Divider อ้างอิงเพียงวงจรเดียว ใช้ ngspice รัน `.op`, `.ac` และ `.tran` โดยแยกผลจาก Analytical Bias ทั้งสามโหมด
+- ไม่รองรับ FET, Circuit Editor หรือการจำลอง AC/Transient ในโหมด Fixed Bias และ Emitter Bias
 
 ## โครงสร้างไฟล์
 
@@ -22,13 +23,23 @@
 .
 ├── app.py                  # Flask routes, form parsing, mode dispatch, unit conversion
 ├── dc_bias.py              # Pure engineering calculations (no Flask)
+├── spice_engine.py         # CE netlist, ngspice process, and ASCII raw parser
+├── spice_plots.py          # Measurements and SVG plot coordinates
 ├── templates/
-│   └── index.html          # Jinja form, mode navigation, results, warnings
+│   ├── index.html          # Lab 03 analytical calculator
+│   ├── simulate.html       # Lab 04 form, results, and plots
+│   ├── bias_schematic.html # Lab 03 SVG schematic
+│   ├── ce_reference.html   # Lab 04 SVG schematic
+│   ├── instrument_header.html
+│   └── bench_components.html
 ├── static/
-│   └── style.css           # Responsive presentation
+│   ├── style.css           # Responsive presentation
+│   ├── simulation.js      # Analysis controls, units, and running status
+│   └── bench.svg          # Workspace favicon
 ├── tests/
 │   ├── test_dc_bias.py     # Existing engineering tests
-│   └── test_web.py         # Existing Flask test-client tests
+│   ├── test_spice_engine.py # Netlist, configuration, real ngspice transport
+│   └── test_web.py         # Flask test-client tests
 ├── requirements.txt        # Flask dependency
 ├── README.md
 ├── AGENTS.md
@@ -90,6 +101,55 @@ http://127.0.0.1:5000/
 
 > สำคัญ: ต้องเปิดผ่าน Flask Server ตามคำสั่งด้านบน ไม่ใช่ Double-click เปิด `templates/index.html` โดยตรง เพราะไฟล์ HTML เป็นเพียง Template ที่ Server นำมาแสดง ผลคำนวณทั้งหมดเกิดใน Python Backend
 
+### ตั้งค่า ngspice และ BJT model สำหรับ Lab 04
+
+ติดตั้งโปรแกรม ngspice จาก [ngspice Downloads](https://ngspice.sourceforge.io/download.html) หากเครื่องยังไม่มี ไม่ต้องติดตั้งผ่าน `pip` เครื่องที่ตรวจใช้ ngspice 47
+
+เมื่อไม่มี Starter Kit หรือโมเดลจากผู้สอน งานนี้ใช้ **onsemi 2N3904 (`Q2n3904`) เป็นโมเดลอ้างอิงทดแทน ไม่ใช่โมเดลที่ผู้สอนรับรอง** ดาวน์โหลดไฟล์ [2n3904.lib](https://www.onsemi.com/download/models/lib/2n3904.lib) โดยตรงจากผู้ผลิต ระบบใช้พารามิเตอร์เดิมทั้งหมด หัวไฟล์ระบุว่าเป็นซอฟต์แวร์กรรมสิทธิ์ และยังไม่พบสิทธิ์แจกไฟล์ต่อ จึงไม่รวมไฟล์นี้หรือ Netlist ที่ฝังพารามิเตอร์ไว้ใน GitHub
+
+ตั้งค่าตัวแปรใน Terminal **ก่อน** รัน Flask แล้วเปิด `http://127.0.0.1:5000/simulate`:
+
+```powershell
+$env:NGSPICE_BIN = 'C:\path\to\ngspice_con.exe'
+$env:BJT_MODEL_FILE = Join-Path $env:TEMP '2n3904.lib'
+Invoke-WebRequest 'https://www.onsemi.com/download/models/lib/2n3904.lib' -OutFile $env:BJT_MODEL_FILE
+Get-FileHash $env:BJT_MODEL_FILE -Algorithm SHA256
+$env:BJT_MODEL_NAME = 'Q2n3904'
+& $env:NGSPICE_BIN --version
+.\.venv\Scripts\python.exe -m flask --app app run
+```
+
+SHA-256 ของไฟล์ที่ใช้ตรวจ: `5608c109b8d68d57798557991cee506661d031916f589325fad5ed10d82ccbf7` ดูหลักฐานและผลอ้างอิงใน [validation](docs/validation.md#10-lab-04--ce-simulation)
+
+ตัวอย่าง macOS/Linux หลังเปิดใช้งาน `.venv` และติดตั้ง ngspice ใน `PATH` (การตรวจรันจริงในเอกสารนี้ใช้ Windows):
+
+```bash
+export BJT_MODEL_FILE="${TMPDIR:-/tmp}/2n3904.lib"
+curl -fL 'https://www.onsemi.com/download/models/lib/2n3904.lib' -o "$BJT_MODEL_FILE"
+export BJT_MODEL_NAME=Q2n3904
+ngspice --version
+python -m flask --app app run
+```
+
+หาก `ngspice` หรือ `ngspice_con` อยู่ใน `PATH` ไม่ต้องตั้ง `NGSPICE_BIN` สามารถเปลี่ยนไฟล์และชื่อโมเดลผ่านสองตัวแปรได้ ชื่อต้องตรงกับคำประกาศ `.model <name> NPN` ในไฟล์ รองรับบรรทัดต่อด้วย `+` แต่ไม่โหลด `.include`, `.lib` หรือ `.subckt` เพิ่มเติม หากตั้งค่าไม่ถูกต้อง หน้า Lab 04 จะแจ้งข้อผิดพลาดโดยไม่แทนผลด้วยค่าอื่น ส่วน Lab 03 ยังใช้งานได้ตามเดิม
+
+- ค่าเริ่มต้นจากใบงาน Lab 04 ใน Moodle (`Lab04_BJT_Amplifier_Simulator_2-2569.html`): 12 V, R1 100 kΩ, R2 22 kΩ, RC 2.2 kΩ, RE 1 kΩ, RL 10 kΩ, Cin/Cout 10 µF และสัญญาณ 10 mV peak ที่ 1 kHz สำหรับ Transient ไฟล์ใบงานเป็นสำเนาเฉพาะเครื่องและไม่ต้องใช้รันแอป
+- AC กวาด `0.1 Hz–100 MHz` บนแกนความถี่ลอการิทึม ใช้ `Vout / Vin` โดยวัด Vin ก่อน Cin และวัด Vout ที่ RL ไม่ประมาณจุดตัด −3 dB
+- Transient รับ `1–100,000 Hz` รัน 20 คาบด้วยขนาดขั้นเวลาสูงสุด `period / 100` และแสดงตัวอย่างจริงในช่วงสี่คาบท้าย
+- ตรวจซ้ำเฉพาะเครื่องโดยคัดลอก **Netlist used for this run** เป็น `circuit.cir` ในโฟลเดอร์ว่าง แล้วเรียก `& $env:NGSPICE_BIN -n -b -o run.log circuit.cir` (หรือ `ngspice -n -b -o run.log circuit.cir` เมื่อใช้ `PATH`) โปรแกรมจะเขียน `result.raw` เป็น ASCII และ `run.log` อย่าเผยแพร่ Netlist ที่ฝังโมเดล งานผ่านเว็บใช้โฟลเดอร์ชั่วคราวแยกแต่ละรอบและกำหนด timeout 10 วินาที
+
+### การอ่านผลบนหน้าเว็บ
+
+- Lab 03 และ Lab 04 ใช้หน้าควบคุมร่วมรูปแบบเดียวกัน แต่แยกผล Analytical ออกจากผล ngspice ชัดเจน เมื่อแก้ค่าอินพุต ผลเดิมจะขึ้นป้าย **Previous run** ตัวเลือก Ω/kΩ ใช้กับตัวต้านทานทุกตัวและไม่แปลงตัวเลขที่กรอกไว้
+- DC แสดง `VCE` และ `IC` เป็นค่าหลัก พร้อมค่าที่โหนดและตารางเทียบกับสมมติฐาน Lab 03 ส่วน AC แยกกราฟ magnitude และ phase ที่ใช้แกนความถี่เดียวกัน และ Transient แยก Vin แบบเส้นประกับ Vout แบบเส้นทึบ
+- ภาพจาก Chrome: [DC หลังปรับ](docs/captures/lab04-after-desktop-dc.png), [Bode ก่อน](docs/captures/lab04-before-desktop-ac.png) / [หลัง](docs/captures/lab04-after-desktop-ac.png), [Transient บนมือถือก่อน](docs/captures/lab04-before-mobile-tran.png) / [หลัง](docs/captures/lab04-after-mobile-tran.png) รายละเอียดการตรวจรับอยู่ใน [validation](docs/validation.md#10-lab-04--ce-simulation)
+
+**บันทึก Lab 04**
+
+- AI ช่วยเชื่อม Flask กับ ngspice, เขียนตัวอ่านผล และเพิ่มหน้าแสดงผลพร้อมการทดสอบ
+- ตรวจผลวงจร BJT ด้วย ngspice และเทียบกับการรัน Netlist อ้างอิงแยกต่างหาก รวมถึงทดสอบการทำงานเดิม
+- นักศึกษาควรตรวจที่มาของโมเดลทดแทนและทวนกราฟ/หน่วยด้วยตนเองก่อนส่งงาน
+
 ## วิธีรัน Tests
 
 จากโฟลเดอร์โปรเจกต์:
@@ -104,7 +164,7 @@ python -m unittest discover -s tests -v
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
-ผลที่คาดหวัง: `Ran 24 tests` และ `OK` (tests เดิมทั้งหมด ไม่มีการเพิ่ม unittest ใหม่)
+ผลตรวจสุดท้ายผ่าน 35 รายการ รวม 34 รายการก่อนตรวจและกรณีป้องกันผลคำนวณเกินช่วงตัวเลข ไม่ต้องใช้โมเดล onsemi สำหรับชุดทดสอบนี้ แต่ต้องตั้ง `NGSPICE_BIN` หรือมี ngspice ใน `PATH` เพื่อไม่ให้ข้ามการทดสอบกับโปรแกรมจริง การทดสอบ Passive ไม่ใช่การยืนยันผลของวงจร BJT; ดู [ผลตรวจจริง](docs/validation.md#11-final-engineering-and-submission-audit)
 
 ## ค่าเริ่มต้นสำหรับสาธิต
 
@@ -201,11 +261,11 @@ VCE = VC − VE
 - **แปลงหน่วย:** `RESISTOR_UNIT_MULTIPLIERS = {"ohm": 1.0, "kohm": 1000.0}` ใน `app.py`; คูณ `factor` กับความต้านทานตอนสร้าง dataclass ใน `calculate()` **ครั้งเดียว** ก่อนส่งเข้า `dc_bias.py` ซึ่งเก็บหน่วย V, A, Ω เสมอ; `format_resistance()` / `_normalized_resistances()` แสดงค่า Ω และ kΩ เพื่อตรวจย้อนกลับ; `templates/index.html` แปลง A → mA/µA เฉพาะตอนแสดงผล
 - **error ระบุโหมด:** `MODE_LABELS` ถูกส่งเป็น `mode_label` เข้า template แล้วเติมชื่อโหมดในข้อความ error
 
-## ข้อจำกัด
+## ข้อจำกัดของ Analytical Bias (Lab 03)
 
 - เป็นการวิเคราะห์ DC Bias เท่านั้น
 - β และ VBE ถูกถือว่าคงที่
-- ไม่ได้จำลอง SPICE, Thermal Effect, Early Effect, AC Gain, Transient หรือ Frequency Response
+- ไม่ได้จำลอง SPICE, Thermal Effect, Early Effect, AC Gain, Transient หรือ Frequency Response; ใช้หน้า CE Simulation สำหรับ Lab 04 แยกต่างหาก
 - ค่า `VCE ≤ 0.2 V` เป็นเกณฑ์ Warning ตาม Lab 03 ไม่ใช่แบบจำลอง Saturation ที่แม่นยำ
 - ไม่มี Solver แยกสำหรับ Cutoff/Saturation และไม่ clamp กระแสเป็นศูนย์
 
@@ -216,7 +276,7 @@ VCE = VC − VE
 ## เอกสารเพิ่มเติม
 
 - [`docs/design-note.md`](docs/design-note.md) — **เอกสารเดิมของ Lab 02 (historical)** เกณฑ์ region ในไฟล์นี้เป็นของ Lab 02 ไม่ใช่เกณฑ์ Lab 03
-- [`docs/validation.md`](docs/validation.md) — การคำนวณอ้างอิงและตารางตรวจสอบ A1–A5 ตามใบงาน Lab 03
+- [`docs/validation.md`](docs/validation.md) — หลักฐานการตรวจ Lab 03 และสถานะการตรวจรับ B1–B8 ของ Lab 04
 - [`docs/reflection.md`](docs/reflection.md) — **Reflection เดิมของ Lab 02 (historical)** ไม่ได้อัปเดตเกณฑ์ Lab 03
 - [`docs/superpowers/specs/2026-11-11-bjt-dc-bias-design.md`](docs/superpowers/specs/2026-11-11-bjt-dc-bias-design.md) — Design Document เดิม
 - [`docs/superpowers/specs/2026-11-17-bias-modes-design.md`](docs/superpowers/specs/2026-11-17-bias-modes-design.md) — Design Document ของโหมดใหม่

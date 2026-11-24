@@ -3,436 +3,158 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>BJT DC Bias Simulator</title>
+  <title>BJT DC Bias Simulator · Lab 03</title>
+  <link rel="icon" href="{{ url_for('static', filename='bench.svg') }}" type="image/svg+xml">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  <script src="{{ url_for('static', filename='simulation.js') }}" defer></script>
 </head>
 <body>
+  {% from 'bench_components.html' import parameter, resistor_selector, readout with context %}
   {% macro resistor_value(field) %}
     {%- if normalized is not none and field in normalized -%}
-      {{- normalized[field].split(' (')[0] -}}
+      {{- normalized[field].split(' (')[0]|truncate(14, true, '…', 0) -}}
     {%- else -%}
       {%- set raw = values[field] -%}
-      {%- if raw and raw.replace('.', '', 1).replace('-', '', 1).isdigit() -%}
+      {%- if raw and raw.replace('.', '', 1).replace('-', '', 1).isdigit() and raw|length < 13 -%}
         {{- '{:,.6f}'.format(raw|float).rstrip('0').rstrip('.') -}}
       {%- else -%}
-        {{- raw -}}
+        {{- raw|truncate(14, true, '…') -}}
       {%- endif -%}
-      {{ 'kΩ' if submitted_unit == 'kohm' else 'Ω' -}}
+      {{ ' kΩ' if submitted_unit == 'kohm' else ' Ω' -}}
     {%- endif -%}
   {% endmacro %}
-
+  {% set workspace = 'bias' %}
+  {% set workspace_title = 'BJT DC Bias Simulator' %}
+  {% set workspace_description = 'Compare three single-supply bias circuits using the forward-active approximation.' %}
   <main class="page">
-    <header class="hero">
-      <p class="eyebrow">ENG29 2121 · Lab 02 / Lab 03</p>
-      <h1>BJT DC Bias Simulator</h1>
-      <p class="lede">Explore Voltage Divider, Fixed Bias, and Emitter Bias circuits. Calculate DC operating points using the forward-active approximation.</p>
-    </header>
+    {% include 'instrument_header.html' %}
+    <div class="workbench">
+      <section class="control-panel" aria-labelledby="configuration-heading">
+        <header class="control-heading">
+          <h2 id="configuration-heading" tabindex="-1">Circuit configuration</h2>
+          {% if mode %}<a class="schematic-jump" href="#schematic-heading">Schematic</a>{% endif %}
+        </header>
+        <nav class="bias-nav" aria-label="Bias mode">
+          {% for option_mode, option_label in mode_options %}
+          <a href="{{ url_for('index', mode=option_mode) }}" {% if mode == option_mode %}aria-current="page"{% endif %}>{{ option_label }}</a>
+          {% endfor %}
+        </nav>
+        <p class="mode-hint">Switching bias modes loads that circuit’s defaults.</p>
+        {% if mode %}
+        <form data-bench-run method="post" action="{{ url_for('calculate') }}">
+          <input type="hidden" name="mode" value="{{ mode }}">
+          {{ resistor_selector() }}
+          <fieldset>
+            <legend>Supply and resistors</legend>
+            <div class="form-grid">
+              {{ parameter('vcc', 'VCC', 'V') }}
+              {% if mode == 'divider' %}
+                {{ parameter('r1', 'R1', 'resistance') }}
+                {{ parameter('r2', 'R2', 'resistance') }}
+              {% else %}
+                {{ parameter('rb', 'RB', 'resistance') }}
+              {% endif %}
+              {{ parameter('rc', 'RC', 'resistance') }}
+              {% if mode in ('divider', 'emitter') %}{{ parameter('re', 'RE', 'resistance') }}{% endif %}
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend>Transistor assumptions</legend>
+            <div class="form-grid">
+              {{ parameter('beta', 'β · DC gain') }}
+              {{ parameter('vbe', 'VBE', 'V') }}
+            </div>
+          </fieldset>
+          <div class="run-action"><button type="submit">Calculate DC Bias</button></div>
+        </form>
+        {% else %}
+        <p class="small">Select a bias mode to load its inputs.</p>
+        {% endif %}
+      </section>
 
-    <div class="dashboard{% if not mode %} single{% endif %}">
-    <section class="card config-card">
-      <h2>Circuit Configuration</h2>
-
-      <nav class="mode-nav" aria-label="Bias mode">
-        {% for option_mode, option_label in mode_options %}
-        <a class="mode-link{% if mode == option_mode %} is-active{% endif %}"
-           href="{{ url_for('index', mode=option_mode) }}"
-           {% if mode == option_mode %}aria-current="page"{% endif %}>{{ option_label }}</a>
-        {% endfor %}
-      </nav>
+      <section class="measure-panel" id="run-results" aria-labelledby="result-title">
+        <header class="instrument-head">
+          <div>
+          <h2 id="result-title" tabindex="-1" {% if result or calculation_error %}data-run-landing{% endif %}>{{ result.mode ~ ' DC Operating Point' if result else 'Analytical results' }}</h2>
+            <p>Forward-active approximation</p>
+          </div>
+          {% if result %}
+          <span class="badge badge-{{ result.region|lower }}" data-run-status data-current-result>Region: {{ result.region }}</span>
+          {% elif errors %}<span class="badge badge-error">Input error</span>
+          {% elif calculation_error %}<span class="badge badge-error">Calculation error</span>
+          {% else %}<span class="badge badge-idle">Ready</span>{% endif %}
+        </header>
+        {% if errors %}
+        <div class="alert alert-error" role="alert">
+          <strong>Please fix the following:</strong>
+          <ul>
+            {% for field, message in errors.items() %}
+            <li>{% if mode %}{{ mode_label }}: {% endif %}{% if field in ('vcc', 'r1', 'r2', 'rb', 'rc', 're', 'beta', 'vbe') and mode %}<a href="#field-{{ field }}">{{ message }}</a>{% else %}{{ message }}{% endif %}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        {% elif calculation_error %}
+        <div class="alert alert-error" role="alert">{{ calculation_error }}</div>
+        {% elif result %}
+          <p class="previous-run" id="previous-run" hidden>These values are from the previous calculation.</p>
+          {% if result.warnings %}
+          <div class="alert alert-warning" role="alert">
+            <strong>Model limitation:</strong>
+            {% for warning in result.warnings %}<p>{{ warning }}</p>{% endfor %}
+            <p>These are forward-active equation outputs, not a validated operating point.</p>
+          </div>
+          {% endif %}
+          <dl class="readout-bank readout-leads">
+            {{ readout('VCE', 'Collector to emitter', "%.3f"|format(result.vce_v), 'V') }}
+            {{ readout('IC', 'Collector current', "%.3f"|format(result.ic_a * 1000), 'mA') }}
+          </dl>
+          <div class="comparison">
+            <h3>Calculated values</h3>
+            <table class="results-table">
+              <thead><tr><th scope="col">Quantity</th><th scope="col">Value</th><th scope="col">Unit</th></tr></thead>
+              <tbody>
+                <tr><th scope="row">VB</th><td>{{ "%.3f"|format(result.vb_v) }}</td><td>V</td></tr>
+                <tr><th scope="row">VE</th><td>{{ "%.3f"|format(result.ve_v) }}</td><td>V</td></tr>
+                <tr><th scope="row">VC</th><td>{{ "%.3f"|format(result.vc_v) }}</td><td>V</td></tr>
+                <tr><th scope="row">VCE</th><td>{{ "%.3f"|format(result.vce_v) }}</td><td>V</td></tr>
+                <tr><th scope="row">IC</th><td>{{ "%.3f"|format(result.ic_a * 1000) }}</td><td>mA</td></tr>
+                <tr><th scope="row">IB</th><td>{{ "%.3f"|format(result.ib_a * 1000000) }}</td><td>µA</td></tr>
+                <tr><th scope="row">IE</th><td>{{ "%.3f"|format(result.ie_a * 1000) }}</td><td>mA</td></tr>
+              </tbody>
+            </table>
+            <p class="small"><strong>Resistances used:</strong>
+              {% for field, resistance in normalized.items() %}
+              <span class="component-value">{{ field|upper }} = {{ resistance }}{{ ',' if not loop.last else '.' }}</span>
+              {% endfor %}
+            </p>
+          </div>
+          <a class="inputs-jump" href="#configuration-heading">Back to controls</a>
+        {% else %}
+          <div class="instrument-empty">
+            <h3>Calculate the selected bias circuit</h3>
+            <p>The readout will show VCE, IC, and the Lab 03 operating-region assessment.</p>
+          </div>
+        {% endif %}
+      </section>
 
       {% if mode %}
-      <form method="post" action="{{ url_for('calculate') }}">
-        <input type="hidden" name="mode" value="{{ mode }}">
-        <div class="form-grid">
-          <label class="field">
-            <span>VCC — supply (V)</span>
-            <input type="text" inputmode="decimal" name="vcc" value="{{ values.vcc }}" required>
-            {% if errors.get('vcc') %}<span class="field-error">{{ errors.get('vcc') }}</span>{% endif %}
-          </label>
-
-          {% if mode == 'divider' %}
-          <label class="field">
-            <span>R1 — upper divider (Ω/kΩ)</span>
-            <input type="text" inputmode="decimal" name="r1" value="{{ values.r1 }}" required>
-            {% if errors.get('r1') %}<span class="field-error">{{ errors.get('r1') }}</span>{% endif %}
-          </label>
-
-          <label class="field">
-            <span>R2 — lower divider (Ω/kΩ)</span>
-            <input type="text" inputmode="decimal" name="r2" value="{{ values.r2 }}" required>
-            {% if errors.get('r2') %}<span class="field-error">{{ errors.get('r2') }}</span>{% endif %}
-          </label>
-          {% endif %}
-
-          {% if mode in ('fixed', 'emitter') %}
-          <label class="field">
-            <span>RB — base resistor (Ω/kΩ)</span>
-            <input type="text" inputmode="decimal" name="rb" value="{{ values.rb }}" required>
-            {% if errors.get('rb') %}<span class="field-error">{{ errors.get('rb') }}</span>{% endif %}
-          </label>
-          {% endif %}
-
-          <label class="field">
-            <span>RC — collector (Ω/kΩ)</span>
-            <input type="text" inputmode="decimal" name="rc" value="{{ values.rc }}" required>
-            {% if errors.get('rc') %}<span class="field-error">{{ errors.get('rc') }}</span>{% endif %}
-          </label>
-
-          {% if mode in ('divider', 'emitter') %}
-          <label class="field">
-            <span>RE — emitter (Ω/kΩ)</span>
-            <input type="text" inputmode="decimal" name="re" value="{{ values.re }}" required>
-            {% if errors.get('re') %}<span class="field-error">{{ errors.get('re') }}</span>{% endif %}
-          </label>
-          {% endif %}
-
-          <label class="field">
-            <span>β — DC current gain</span>
-            <input type="text" inputmode="decimal" name="beta" value="{{ values.beta }}" required>
-            {% if errors.get('beta') %}<span class="field-error">{{ errors.get('beta') }}</span>{% endif %}
-          </label>
-
-          <label class="field">
-            <span>VBE — base-emitter (V)</span>
-            <input type="text" inputmode="decimal" name="vbe" value="{{ values.vbe }}" required>
-            {% if errors.get('vbe') %}<span class="field-error">{{ errors.get('vbe') }}</span>{% endif %}
-          </label>
-
-          <label class="field field-unit">
-            <span>Resistor unit</span>
-            <select name="resistor_unit">
-              <option value="ohm" {% if submitted_unit == 'ohm' %}selected{% endif %}>Ω · ohm</option>
-              <option value="kohm" {% if submitted_unit == 'kohm' %}selected{% endif %}>kΩ · kiloohm</option>
-            </select>
-            {% if errors.get('resistor_unit') %}<span class="field-error">{{ errors.get('resistor_unit') }}</span>{% endif %}
-          </label>
-        </div>
-
-        <button type="submit">Calculate DC Bias</button>
-      </form>
-      {% else %}
-      <p class="small">Choose one of the bias modes above to load its input form.</p>
+      <section class="schematic-panel" aria-labelledby="schematic-heading">
+        <header class="panel-heading"><h2 id="schematic-heading" tabindex="-1">{{ mode_label }} schematic</h2><span>DC bias</span></header>
+        <div class="schematic-surface">{% include 'bias_schematic.html' %}</div>
+        <p class="schematic-caption">
+          {% if mode == 'divider' %}R1 and R2 bias the base; RE returns the emitter to ground.
+          {% elif mode == 'fixed' %}RB biases the base and the emitter is grounded directly.
+          {% else %}RB biases the base; RE returns the emitter to ground.{% endif %}
+          Probe values appear after calculation.
+        </p>
+        <a class="inputs-jump schematic-return" href="#configuration-heading">Back to controls</a>
+      </section>
       {% endif %}
-    </section>
-
-    {% if mode %}
-    <section class="card schematic-card" aria-labelledby="schematic-heading">
-      <h2 id="schematic-heading">
-        {% if mode == 'divider' %}
-        Circuit: Voltage-Divider Bias
-        {% elif mode == 'fixed' %}
-        Circuit: Fixed Bias
-        {% else %}
-        Circuit: Emitter Bias
-        {% endif %}
-      </h2>
-
-      {% if mode == 'divider' %}
-      <svg id="circuit-schematic" class="schematic" viewBox="0 0 420 470" role="img"
-           aria-labelledby="schematic-title schematic-desc" xmlns="http://www.w3.org/2000/svg">
-        <title id="schematic-title">NPN common-emitter voltage-divider bias circuit</title>
-        <desc id="schematic-desc">VCC feeds R1 and RC. R1 connects to the base node, where R2 returns to ground. RC feeds the collector of the NPN transistor. RE connects the emitter to ground. Both R2 and RE terminate at ground.</desc>
-
-        <!-- VCC rail -->
-        <line class="schematic-wire" x1="150" y1="50" x2="283" y2="50"></line>
-        <g id="schematic-vcc">
-          <circle class="schematic-node" cx="283" cy="50" r="4.5"></circle>
-          <text class="schematic-label" x="283" y="28" text-anchor="middle">VCC</text>
-        </g>
-
-        <!-- R1: VCC to base node -->
-        <g id="schematic-r1">
-          <line class="schematic-wire" x1="150" y1="50" x2="150" y2="95"></line>
-          <polyline class="schematic-component" points="150,95 160,105 140,121 160,137 140,153 160,169 150,175"></polyline>
-          <line class="schematic-wire" x1="150" y1="175" x2="150" y2="255"></line>
-          <text class="schematic-label" x="132" y="136" text-anchor="end">R1</text>
-          <text class="schematic-value" x="132" y="155" text-anchor="end">{{ resistor_value('r1') }}</text>
-        </g>
-
-        <!-- R2: base node to ground -->
-        <g id="schematic-r2">
-          <line class="schematic-wire" x1="150" y1="255" x2="150" y2="300"></line>
-          <polyline class="schematic-component" points="150,300 160,310 140,326 160,342 140,358 160,374 150,380"></polyline>
-          <line class="schematic-wire" x1="150" y1="380" x2="150" y2="415"></line>
-          <text class="schematic-label" x="132" y="342" text-anchor="end">R2</text>
-          <text class="schematic-value" x="132" y="361" text-anchor="end">{{ resistor_value('r2') }}</text>
-        </g>
-
-        <!-- RC: VCC to collector -->
-        <g id="schematic-rc">
-          <line class="schematic-wire" x1="283" y1="50" x2="283" y2="95"></line>
-          <polyline class="schematic-component" points="283,95 293,105 273,121 293,137 273,153 293,169 283,175"></polyline>
-          <line class="schematic-wire" x1="283" y1="175" x2="283" y2="205"></line>
-          <text class="schematic-label" x="302" y="134">RC</text>
-          <text class="schematic-value" x="302" y="153">{{ resistor_value('rc') }}</text>
-        </g>
-
-        <!-- Q1: NPN transistor -->
-        <g id="schematic-q1">
-          <circle class="schematic-body" cx="272" cy="255" r="48"></circle>
-          <line class="schematic-wire" x1="150" y1="255" x2="245" y2="255"></line>
-          <line class="schematic-wire" x1="245" y1="228" x2="245" y2="282"></line>
-          <line class="schematic-wire" x1="245" y1="240" x2="283" y2="205"></line>
-          <line class="schematic-wire" x1="245" y1="270" x2="283" y2="305"></line>
-          <polygon id="schematic-emitter-arrow" class="schematic-arrow" points="281,303 266.3,298.9 274.7,289.1"></polygon>
-          <text class="schematic-label" x="332" y="250">Q1</text>
-          <text class="schematic-label-sub" x="332" y="268">NPN</text>
-        </g>
-
-        <!-- RE: emitter to ground -->
-        <g id="schematic-re">
-          <line class="schematic-wire" x1="283" y1="305" x2="283" y2="320"></line>
-          <polyline class="schematic-component" points="283,320 293,330 273,346 293,362 273,378 293,394 283,400"></polyline>
-          <line class="schematic-wire" x1="283" y1="400" x2="283" y2="415"></line>
-          <text class="schematic-label" x="302" y="360">RE</text>
-          <text class="schematic-value" x="302" y="379">{{ resistor_value('re') }}</text>
-        </g>
-
-        <!-- Ground symbols -->
-        <g id="schematic-ground-r2">
-          <line class="schematic-wire" x1="150" y1="415" x2="150" y2="422"></line>
-          <line class="schematic-wire" x1="136" y1="422" x2="164" y2="422"></line>
-          <line class="schematic-wire" x1="141" y1="428" x2="159" y2="428"></line>
-          <line class="schematic-wire" x1="146" y1="434" x2="154" y2="434"></line>
-          <text class="schematic-label-sub" x="150" y="452" text-anchor="middle">GND</text>
-        </g>
-
-        <g id="schematic-ground-re">
-          <line class="schematic-wire" x1="283" y1="415" x2="283" y2="422"></line>
-          <line class="schematic-wire" x1="269" y1="422" x2="297" y2="422"></line>
-          <line class="schematic-wire" x1="274" y1="428" x2="292" y2="428"></line>
-          <line class="schematic-wire" x1="279" y1="434" x2="287" y2="434"></line>
-          <text class="schematic-label-sub" x="283" y="452" text-anchor="middle">GND</text>
-        </g>
-
-        <!-- Base node junction -->
-        <circle class="schematic-node" cx="150" cy="255" r="4.5"></circle>
-
-        {% if result %}
-        <g class="probe-group">
-          <text class="probe probe-v" x="126" y="244" text-anchor="end">VB {{ "%.3f"|format(result.vb_v) }} V</text>
-          <text class="probe probe-i" x="126" y="266" text-anchor="end">IB {{ "%.3f"|format(result.ib_a * 1000000) }} µA</text>
-          <text class="probe probe-i" x="306" y="188">IC {{ "%.3f"|format(result.ic_a * 1000) }} mA</text>
-          <text class="probe probe-v" x="306" y="210">VC {{ "%.3f"|format(result.vc_v) }} V</text>
-          <text class="probe probe-v" x="306" y="318">VE {{ "%.3f"|format(result.ve_v) }} V</text>
-          <text class="probe probe-v" x="306" y="338">VCE {{ "%.3f"|format(result.vce_v) }} V</text>
-        </g>
-        {% endif %}
-      </svg>
-      {% elif mode == 'fixed' %}
-      <svg id="circuit-schematic" class="schematic" viewBox="0 0 420 470" role="img"
-           aria-labelledby="schematic-title schematic-desc" xmlns="http://www.w3.org/2000/svg">
-        <title id="schematic-title">NPN common-emitter fixed-bias circuit</title>
-        <desc id="schematic-desc">VCC feeds RB and RC. RB connects to the base of the NPN transistor. RC feeds the collector. The emitter is connected directly to ground.</desc>
-
-        <line class="schematic-wire" x1="150" y1="50" x2="283" y2="50"></line>
-        <g id="schematic-vcc">
-          <circle class="schematic-node" cx="283" cy="50" r="4.5"></circle>
-          <text class="schematic-label" x="283" y="28" text-anchor="middle">VCC</text>
-        </g>
-
-        <g id="schematic-rb">
-          <line class="schematic-wire" x1="150" y1="50" x2="150" y2="95"></line>
-          <polyline class="schematic-component" points="150,95 160,105 140,121 160,137 140,153 160,169 150,175"></polyline>
-          <line class="schematic-wire" x1="150" y1="175" x2="150" y2="255"></line>
-          <text class="schematic-label" x="132" y="136" text-anchor="end">RB</text>
-          <text class="schematic-value" x="132" y="155" text-anchor="end">{{ resistor_value('rb') }}</text>
-        </g>
-
-        <g id="schematic-rc">
-          <line class="schematic-wire" x1="283" y1="50" x2="283" y2="95"></line>
-          <polyline class="schematic-component" points="283,95 293,105 273,121 293,137 273,153 293,169 283,175"></polyline>
-          <line class="schematic-wire" x1="283" y1="175" x2="283" y2="205"></line>
-          <text class="schematic-label" x="302" y="134">RC</text>
-          <text class="schematic-value" x="302" y="153">{{ resistor_value('rc') }}</text>
-        </g>
-
-        <g id="schematic-q1">
-          <circle class="schematic-body" cx="272" cy="255" r="48"></circle>
-          <line class="schematic-wire" x1="150" y1="255" x2="245" y2="255"></line>
-          <line class="schematic-wire" x1="245" y1="228" x2="245" y2="282"></line>
-          <line class="schematic-wire" x1="245" y1="240" x2="283" y2="205"></line>
-          <line class="schematic-wire" x1="245" y1="270" x2="283" y2="305"></line>
-          <polygon id="schematic-emitter-arrow" class="schematic-arrow" points="281,303 266.3,298.9 274.7,289.1"></polygon>
-          <text class="schematic-label" x="332" y="250">Q1</text>
-          <text class="schematic-label-sub" x="332" y="268">NPN</text>
-        </g>
-
-        <g id="schematic-ground-emitter">
-          <line class="schematic-wire" x1="283" y1="305" x2="283" y2="415"></line>
-          <line class="schematic-wire" x1="283" y1="415" x2="283" y2="422"></line>
-          <line class="schematic-wire" x1="269" y1="422" x2="297" y2="422"></line>
-          <line class="schematic-wire" x1="274" y1="428" x2="292" y2="428"></line>
-          <line class="schematic-wire" x1="279" y1="434" x2="287" y2="434"></line>
-          <text class="schematic-label-sub" x="283" y="452" text-anchor="middle">GND</text>
-        </g>
-
-        <circle class="schematic-node" cx="150" cy="255" r="4.5"></circle>
-
-        {% if result %}
-        <g class="probe-group">
-          <text class="probe probe-v" x="126" y="244" text-anchor="end">VB {{ "%.3f"|format(result.vb_v) }} V</text>
-          <text class="probe probe-i" x="126" y="266" text-anchor="end">IB {{ "%.3f"|format(result.ib_a * 1000000) }} µA</text>
-          <text class="probe probe-i" x="306" y="188">IC {{ "%.3f"|format(result.ic_a * 1000) }} mA</text>
-          <text class="probe probe-v" x="306" y="210">VC {{ "%.3f"|format(result.vc_v) }} V</text>
-          <text class="probe probe-v" x="306" y="318">VE {{ "%.3f"|format(result.ve_v) }} V</text>
-          <text class="probe probe-v" x="306" y="338">VCE {{ "%.3f"|format(result.vce_v) }} V</text>
-        </g>
-        {% endif %}
-      </svg>
-      {% else %}
-      <svg id="circuit-schematic" class="schematic" viewBox="0 0 420 470" role="img"
-           aria-labelledby="schematic-title schematic-desc" xmlns="http://www.w3.org/2000/svg">
-        <title id="schematic-title">NPN common-emitter single-supply emitter-bias circuit</title>
-        <desc id="schematic-desc">VCC feeds RB and RC. RB connects to the base of the NPN transistor. RC feeds the collector. RE connects the emitter to ground.</desc>
-
-        <line class="schematic-wire" x1="150" y1="50" x2="283" y2="50"></line>
-        <g id="schematic-vcc">
-          <circle class="schematic-node" cx="283" cy="50" r="4.5"></circle>
-          <text class="schematic-label" x="283" y="28" text-anchor="middle">VCC</text>
-        </g>
-
-        <g id="schematic-rb">
-          <line class="schematic-wire" x1="150" y1="50" x2="150" y2="95"></line>
-          <polyline class="schematic-component" points="150,95 160,105 140,121 160,137 140,153 160,169 150,175"></polyline>
-          <line class="schematic-wire" x1="150" y1="175" x2="150" y2="255"></line>
-          <text class="schematic-label" x="132" y="136" text-anchor="end">RB</text>
-          <text class="schematic-value" x="132" y="155" text-anchor="end">{{ resistor_value('rb') }}</text>
-        </g>
-
-        <g id="schematic-rc">
-          <line class="schematic-wire" x1="283" y1="50" x2="283" y2="95"></line>
-          <polyline class="schematic-component" points="283,95 293,105 273,121 293,137 273,153 293,169 283,175"></polyline>
-          <line class="schematic-wire" x1="283" y1="175" x2="283" y2="205"></line>
-          <text class="schematic-label" x="302" y="134">RC</text>
-          <text class="schematic-value" x="302" y="153">{{ resistor_value('rc') }}</text>
-        </g>
-
-        <g id="schematic-q1">
-          <circle class="schematic-body" cx="272" cy="255" r="48"></circle>
-          <line class="schematic-wire" x1="150" y1="255" x2="245" y2="255"></line>
-          <line class="schematic-wire" x1="245" y1="228" x2="245" y2="282"></line>
-          <line class="schematic-wire" x1="245" y1="240" x2="283" y2="205"></line>
-          <line class="schematic-wire" x1="245" y1="270" x2="283" y2="305"></line>
-          <polygon id="schematic-emitter-arrow" class="schematic-arrow" points="281,303 266.3,298.9 274.7,289.1"></polygon>
-          <text class="schematic-label" x="332" y="250">Q1</text>
-          <text class="schematic-label-sub" x="332" y="268">NPN</text>
-        </g>
-
-        <g id="schematic-re">
-          <line class="schematic-wire" x1="283" y1="305" x2="283" y2="320"></line>
-          <polyline class="schematic-component" points="283,320 293,330 273,346 293,362 273,378 293,394 283,400"></polyline>
-          <line class="schematic-wire" x1="283" y1="400" x2="283" y2="415"></line>
-          <text class="schematic-label" x="302" y="360">RE</text>
-          <text class="schematic-value" x="302" y="379">{{ resistor_value('re') }}</text>
-        </g>
-
-        <g id="schematic-ground-emitter">
-          <line class="schematic-wire" x1="283" y1="415" x2="283" y2="422"></line>
-          <line class="schematic-wire" x1="269" y1="422" x2="297" y2="422"></line>
-          <line class="schematic-wire" x1="274" y1="428" x2="292" y2="428"></line>
-          <line class="schematic-wire" x1="279" y1="434" x2="287" y2="434"></line>
-          <text class="schematic-label-sub" x="283" y="452" text-anchor="middle">GND</text>
-        </g>
-
-        <circle class="schematic-node" cx="150" cy="255" r="4.5"></circle>
-
-        {% if result %}
-        <g class="probe-group">
-          <text class="probe probe-v" x="126" y="244" text-anchor="end">VB {{ "%.3f"|format(result.vb_v) }} V</text>
-          <text class="probe probe-i" x="126" y="266" text-anchor="end">IB {{ "%.3f"|format(result.ib_a * 1000000) }} µA</text>
-          <text class="probe probe-i" x="306" y="188">IC {{ "%.3f"|format(result.ic_a * 1000) }} mA</text>
-          <text class="probe probe-v" x="306" y="210">VC {{ "%.3f"|format(result.vc_v) }} V</text>
-          <text class="probe probe-v" x="306" y="318">VE {{ "%.3f"|format(result.ve_v) }} V</text>
-          <text class="probe probe-v" x="306" y="338">VCE {{ "%.3f"|format(result.vce_v) }} V</text>
-        </g>
-        {% endif %}
-      </svg>
-      {% endif %}
-
-      <p class="schematic-caption">
-        {% if mode == 'divider' %}
-        Voltage-divider topology: VCC → R1 → base node, with R2 to ground and RE at the emitter.
-        {% elif mode == 'fixed' %}
-        Fixed-bias topology: VCC → RB → base, with the emitter tied directly to ground.
-        {% else %}
-        Single-supply emitter-bias topology: VCC → RB → base, with RE at the emitter.
-        {% endif %}
-        Values come from the configuration; measurement labels appear after Calculate.
-      </p>
-    </section>
-    {% endif %}
     </div>
-
-    <section class="card results-panel">
-      {% if errors %}
-      <div class="alert alert-error" role="alert">
-        <strong>Please fix the following:</strong>
-        <ul>
-          {% for message in errors.values() %}
-          <li>{% if mode %}{{ mode_label }}: {% endif %}{{ message }}</li>
-          {% endfor %}
-        </ul>
-      </div>
-      {% endif %}
-
-      {% if result %}
-      <div class="results" aria-live="polite">
-      <div class="result-heading">
-        <h2>{{ result.mode }} DC Operating Point</h2>
-        <div class="region-indicator">
-          <span class="region-label">Region:</span>
-          <span class="badge badge-{{ result.region|lower }}">{{ result.region }}</span>
-        </div>
-      </div>
-
-      {% if result.warnings %}
-      <div class="alert alert-warning" role="alert">
-        <strong>Model limitation:</strong>
-        {% for warning in result.warnings %}
-        <p>{{ warning }}</p>
-        {% endfor %}
-        <p>The values below are the forward-active equation output, not a validated operating point.</p>
-      </div>
-      {% endif %}
-
-      <table class="results-table">
-        <thead>
-          <tr><th>Quantity</th><th>Value</th><th>Unit</th></tr>
-        </thead>
-        <tbody>
-          <tr><td>VB</td><td>{{ "%.3f"|format(result.vb_v) }}</td><td>V</td></tr>
-          <tr><td>VE</td><td>{{ "%.3f"|format(result.ve_v) }}</td><td>V</td></tr>
-          <tr><td>VC</td><td>{{ "%.3f"|format(result.vc_v) }}</td><td>V</td></tr>
-          <tr><td>VCE</td><td>{{ "%.3f"|format(result.vce_v) }}</td><td>V</td></tr>
-          <tr><td>IC</td><td>{{ "%.3f"|format(result.ic_a * 1000) }}</td><td>mA</td></tr>
-          <tr><td>IB</td><td>{{ "%.3f"|format(result.ib_a * 1000000) }}</td><td>µA</td></tr>
-          <tr><td>IE</td><td>{{ "%.3f"|format(result.ie_a * 1000) }}</td><td>mA</td></tr>
-        </tbody>
-      </table>
-
-      <p class="normalized">
-        <strong>Resistances used:</strong>
-        {% if mode == 'divider' %}
-        R1 = {{ normalized.r1 }}, R2 = {{ normalized.r2 }},
-        RC = {{ normalized.rc }}, RE = {{ normalized.re }}
-        {% elif mode == 'fixed' %}
-        RB = {{ normalized.rb }}, RC = {{ normalized.rc }}
-        {% else %}
-        RB = {{ normalized.rb }}, RC = {{ normalized.rc }},
-        RE = {{ normalized.re }}
-        {% endif %}
-      </p>
-      </div>
-      {% else %}
-      <p class="empty-state">Results will appear here after you press Calculate.</p>
-      {% endif %}
-    </section>
-
-    <section class="card notes">
-      <h2>Model assumptions</h2>
-      <p>Forward-active approximation with constant β and constant VBE. The Lab 03 warning criteria are IB ≤ 0 A or VCE ≤ 0.2 V. Warnings are separate from input errors. This is a DC bias calculator, not a SPICE simulator.</p>
-    </section>
+    <footer class="bench-footer">
+      <strong>Lab 03 model</strong>
+      <span>Constant β and VBE. Cutoff for IB ≤ 0 A; otherwise saturation for VCE ≤ 0.2 V. These are analytical results, not SPICE outputs.</span>
+    </footer>
   </main>
 </body>
 </html>

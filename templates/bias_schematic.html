@@ -1,0 +1,71 @@
+<svg id="circuit-schematic" class="schematic bias-schematic" viewBox="0 0 424 260" role="img"
+     aria-labelledby="schematic-title schematic-desc" xmlns="http://www.w3.org/2000/svg">
+  <title id="schematic-title">{% if mode == 'divider' %}NPN common-emitter voltage-divider bias circuit{% elif mode == 'fixed' %}NPN common-emitter fixed-bias circuit{% else %}NPN common-emitter single-supply emitter-bias circuit{% endif %}</title>
+  <desc id="schematic-desc">VCC feeds {{ 'R1' if mode == 'divider' else 'RB' }} and RC. The collector is fed by RC. {% if mode == 'divider' %}R1 and R2 form the divider at the base.{% else %}RB feeds the base.{% endif %} The emitter {{ 'is grounded directly' if mode == 'fixed' else 'returns to ground through RE' }}.</desc>
+  <defs>
+    <path id="bias-resistor" d="M0 0l6 4-12 6 12 6-12 6 12 6-6 4"/>
+    <path id="bias-ground" d="M0 0v8m-12 0h24m-8 5h16M-4 18h8"/>
+  </defs>
+  <g id="schematic-vcc">
+    <path class="schematic-wire" d="M133 29h150"/>
+    <circle class="schematic-node" cx="283" cy="29" r="3.6"/>
+    <text class="schematic-label" x="283" y="18" text-anchor="middle">VCC</text>
+  </g>
+  {% set base_resistor = 'r1' if mode == 'divider' else 'rb' %}
+  <g id="schematic-{{ base_resistor }}">
+    <path class="schematic-wire" d="M133 29v21m0 32v44"/>
+    <use class="schematic-component" href="#bias-resistor" x="133" y="50"/>
+    <text class="schematic-label" x="115" y="58" text-anchor="end">{{ base_resistor|upper }}</text>
+    <text class="schematic-secondary" x="115" y="81" text-anchor="end">{{ resistor_value(base_resistor) }}</text>
+  </g>
+  {% if mode == 'divider' %}
+  <g id="schematic-r2">
+    <path class="schematic-wire" d="M133 126v50m0 32v22"/>
+    <use class="schematic-component" href="#bias-resistor" x="133" y="176"/>
+    <text class="schematic-label" x="115" y="182" text-anchor="end">R2</text>
+    <text class="schematic-secondary" x="115" y="205" text-anchor="end">{{ resistor_value('r2') }}</text>
+  </g>
+  <g id="schematic-ground-r2">
+    <use class="schematic-wire" href="#bias-ground" x="133" y="230"/>
+  </g>
+  {% endif %}
+  <g id="schematic-rc">
+    <path class="schematic-wire" d="M283 29v21m0 32v16"/>
+    <use class="schematic-component" href="#bias-resistor" x="283" y="50"/>
+    <text class="schematic-label" x="302" y="58">RC</text>
+    <text class="schematic-secondary" x="302" y="81">{{ resistor_value('rc') }}</text>
+  </g>
+  <g id="schematic-q1">
+    <path class="schematic-wire" d="M133 126h109m0-18v36m0-26 41-20m-41 39 41 30"/>
+    <path id="schematic-emitter-arrow" class="schematic-arrow" d="M274 160l-13-2 6-9z"/>
+    <text class="schematic-label" x="302" y="146">Q1</text>
+    <text class="schematic-secondary" x="302" y="169">NPN</text>
+  </g>
+  <circle class="schematic-node" cx="133" cy="126" r="3.6"/>
+  <circle class="schematic-node" cx="283" cy="98" r="3.6"/>
+  <circle class="schematic-node" cx="283" cy="167" r="3.6"/>
+  {% if mode != 'fixed' %}
+  <g id="schematic-re">
+    <path class="schematic-wire" d="M283 167v16m0 32v15"/>
+    <use class="schematic-component" href="#bias-resistor" x="283" y="183"/>
+    <text class="schematic-label" x="302" y="192">RE</text>
+    <text class="schematic-secondary" x="302" y="215">{{ resistor_value('re') }}</text>
+  </g>
+  {% else %}
+    <path class="schematic-wire" d="M283 167v63"/>
+  {% endif %}
+  <g id="schematic-ground-{{ 're' if mode == 'divider' else 'emitter' }}">
+    <use class="schematic-wire" href="#bias-ground" x="283" y="230"/>
+    <text class="schematic-secondary" x="265" y="246" text-anchor="end">GND</text>
+  </g>
+  {% if result %}
+  <g class="probe-group">
+    <text class="probe probe-v" x="115" y="121" text-anchor="end">VB {{ "%.4g"|format(result.vb_v) }} V</text>
+    <text class="probe probe-i" x="115" y="139" text-anchor="end">IB {{ "%.4g"|format(result.ib_a * 1000000) }} µA</text>
+    <text class="probe probe-v" x="302" y="106">VC {{ "%.4g"|format(result.vc_v) }} V</text>
+    <text class="probe probe-i" x="302" y="124">IC {{ "%.4g"|format(result.ic_a * 1000) }} mA</text>
+    <text class="probe probe-v" x="269" y="180" text-anchor="end">VE {{ "%.4g"|format(result.ve_v) }} V</text>
+    <text class="probe probe-v" x="269" y="199" text-anchor="end">VCE {{ "%.4g"|format(result.vce_v) }} V</text>
+  </g>
+  {% endif %}
+</svg>

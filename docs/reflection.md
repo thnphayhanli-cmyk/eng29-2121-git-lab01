@@ -36,4 +36,4 @@
 
 ## ข้อจำกัดและแนวทางต่อไป
 
-แบบจำลองนี้เป็น DC Bias ภายใต้ Forward-Active Approximation เท่านั้น ยังไม่มี AC Small-Signal, Transient, Bode Plot, DC Load Line หรือ SPICE/ngspice การพัฒนาต่อในสัปดาห์ถัดไปสามารถเพิ่ม Bias Template อื่น ๆ แล้วค่อยยกระดับความสมจริงของ DC Analysis ตามลำดับของรายวิชา
+ณ Lab 02 แบบจำลองเป็น DC Bias ภายใต้ Forward-Active Approximation เท่านั้น และยังไม่มี AC Small-Signal, Transient, Bode Plot, DC Load Line หรือ SPICE/ngspice ข้อจำกัดนี้อธิบายเฉพาะงาน Lab 02; ดูขอบเขตและสถานะ Lab 04 ใน [README](../README.md)

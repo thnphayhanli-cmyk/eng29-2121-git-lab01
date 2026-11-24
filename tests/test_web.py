@@ -163,6 +163,73 @@ class TestWeb(unittest.TestCase):
         self.assertIn("Saturation", body)
         self.assertIn("not valid", body)
 
+    def test_calculation_overflow_never_renders_a_region_or_readout(self):
+        for mode, extra in (
+            ("divider", {"r1": "1e308", "r2": "1e308"}),
+            ("fixed", {"rb": "1e-320"}),
+            ("emitter", {"rb": "1000000", "beta": "1e308", "re": "1e308"}),
+        ):
+            with self.subTest(mode=mode):
+                response = self.client.post("/calculate", data=DEFAULT_PAYLOAD | {"mode": mode} | extra)
+                self.assertEqual(response.status_code, 422)
+                body = response.get_data(as_text=True)
+                self.assertIn("Calculation exceeded the numeric range", body)
+                self.assertNotIn('class="reading"', body)
+                self.assertNotIn("Region:", body)
+
+
+class TestSimulationWeb(unittest.TestCase):
+    payload = {
+        "analysis": "dc", "vcc": "12", "r1": "100", "r2": "22", "rc": "2.2",
+        "re": "1", "rl": "10", "cin": "10", "cout": "10", "resistor_unit": "kohm",
+    }
+
+    def setUp(self):
+        original_model_file = app.config["BJT_MODEL_FILE"]
+        self.addCleanup(app.config.update, BJT_MODEL_FILE=original_model_file)
+        app.config["BJT_MODEL_FILE"] = ""
+        self.client = app.test_client()
+
+    def test_simulation_page_lists_all_analyses_without_claiming_success(self):
+        response = self.client.get("/simulate")
+        self.assertEqual(response.status_code, 200)
+        body = response.get_data(as_text=True)
+        for label in ("DC operating point", "AC frequency response", "Transient response"):
+            self.assertIn(label, body)
+        self.assertNotIn(">Success<", body)
+
+    def test_missing_model_reports_configuration_error_without_results(self):
+        for analysis in ("dc", "ac", "tran"):
+            with self.subTest(analysis=analysis):
+                response = self.client.post("/simulate", data=dict(
+                    self.payload, analysis=analysis, amplitude="10", frequency="1000",
+                ))
+                self.assertEqual(response.status_code, 503)
+                body = response.get_data(as_text=True)
+                self.assertIn("BJT model not configured.", body)
+                self.assertNotIn(">Success<", body)
+                self.assertNotIn("<polyline", body)
+
+    def test_invalid_values_are_rejected_before_the_missing_model(self):
+        for field, value in (
+            ("re", "0"), ("cin", "nan"), ("r1", "1e308"), ("vcc", "wrong"),
+            ("cout", ""), ("resistor_unit", "unknown"), ("analysis", "unknown"),
+        ):
+            with self.subTest(field=field):
+                response = self.client.post("/simulate", data=self.payload | {field: value})
+                self.assertEqual(response.status_code, 400)
+                self.assertIn("ngspice was not started", response.get_data(as_text=True))
+
+    def test_transient_only_checks_sine_source_and_frequency_range(self):
+        for override in ({"amplitude": "0"}, {"frequency": "100001"}, {"frequency": "inf"}):
+            with self.subTest(override=override):
+                response = self.client.post("/simulate", data=(
+                    self.payload | {"analysis": "tran", "amplitude": "10", "frequency": "1000"} | override
+                ))
+                self.assertEqual(response.status_code, 400)
+        response = self.client.post("/simulate", data=dict(self.payload, analysis="ac", frequency="abc"))
+        self.assertEqual(response.status_code, 503)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

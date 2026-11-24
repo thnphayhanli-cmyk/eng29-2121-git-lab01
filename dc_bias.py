@@ -24,6 +24,15 @@ class BiasValidationError(ValueError):
         super().__init__("; ".join(errors.values()))
 
 
+class BiasCalculationError(ArithmeticError):
+    """The inputs passed validation, but the arithmetic left the numeric range."""
+
+
+def _require_finite(*values: float) -> None:
+    if not all(math.isfinite(value) for value in values):
+        raise BiasCalculationError("Calculation exceeded the numeric range. Use less extreme values.")
+
+
 @dataclass(frozen=True)
 class BiasInput:
     vcc_v: float
@@ -255,11 +264,13 @@ def calculate_dc_bias(inputs: BiasInput) -> BiasResult:
 
     validate_dc_bias_inputs(inputs)
 
-    vth_v = inputs.vcc_v * inputs.r2_ohm / (inputs.r1_ohm + inputs.r2_ohm)
-    rth_ohm = inputs.r1_ohm * inputs.r2_ohm / (inputs.r1_ohm + inputs.r2_ohm)
-    ib_a = (vth_v - inputs.vbe_v) / (
-        rth_ohm + (inputs.beta + 1.0) * inputs.re_ohm
-    )
+    divider_ohm = inputs.r1_ohm + inputs.r2_ohm
+    _require_finite(divider_ohm)
+    vth_v = inputs.vcc_v * inputs.r2_ohm / divider_ohm
+    rth_ohm = inputs.r1_ohm * inputs.r2_ohm / divider_ohm
+    total_ohm = rth_ohm + (inputs.beta + 1.0) * inputs.re_ohm
+    _require_finite(vth_v, rth_ohm, total_ohm)
+    ib_a = (vth_v - inputs.vbe_v) / total_ohm
     ic_a = inputs.beta * ib_a
     ie_a = (inputs.beta + 1.0) * ib_a
     ve_v = ie_a * inputs.re_ohm
@@ -267,6 +278,7 @@ def calculate_dc_bias(inputs: BiasInput) -> BiasResult:
     vc_v = inputs.vcc_v - ic_a * inputs.rc_ohm
     vce_v = vc_v - ve_v
 
+    _require_finite(ib_a, ic_a, ie_a, ve_v, vb_v, vc_v, vce_v)
     region, warnings = _classify_operating_point(ib_a, vce_v)
 
     return BiasResult(
@@ -314,6 +326,7 @@ def calculate_fixed_bias(inputs: FixedBiasInput) -> dict[str, object]:
     vb_v = ve_v + inputs.vbe_v
     vc_v = inputs.vcc_v - ic_a * inputs.rc_ohm
     vce_v = vc_v - ve_v
+    _require_finite(ib_a, ic_a, ie_a, ve_v, vb_v, vc_v, vce_v)
     region, warnings = _classify_operating_point(ib_a, vce_v)
 
     return _result_dict(
@@ -335,15 +348,16 @@ def calculate_emitter_bias(inputs: EmitterBiasInput) -> dict[str, object]:
 
     validate_emitter_bias_inputs(inputs)
 
-    ib_a = (inputs.vcc_v - inputs.vbe_v) / (
-        inputs.rb_ohm + (inputs.beta + 1.0) * inputs.re_ohm
-    )
+    total_ohm = inputs.rb_ohm + (inputs.beta + 1.0) * inputs.re_ohm
+    _require_finite(total_ohm)
+    ib_a = (inputs.vcc_v - inputs.vbe_v) / total_ohm
     ic_a = inputs.beta * ib_a
     ie_a = (inputs.beta + 1.0) * ib_a
     ve_v = ie_a * inputs.re_ohm
     vb_v = ve_v + inputs.vbe_v
     vc_v = inputs.vcc_v - ic_a * inputs.rc_ohm
     vce_v = vc_v - ve_v
+    _require_finite(ib_a, ic_a, ie_a, ve_v, vb_v, vc_v, vce_v)
     region, warnings = _classify_operating_point(ib_a, vce_v)
 
     return _result_dict(

@@ -3,7 +3,7 @@
 - **Course:** ENG29 2121, Lab 02
 - **Date:** 2026-11-11
 - **Status:** Approved design, ready for implementation planning
-- **Source specification:** `C:\Users\b6827526\Downloads\Lab02_BJT_Simulator_Brainstorm_2-2569.html`
+- **Source specification:** `Lab02_BJT_Simulator_Brainstorm_2-2569.html` (local course handout)
 
 ## 1. Intent and why
 

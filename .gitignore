@@ -2,3 +2,16 @@ __pycache__/
 *.pyc
 .venv/
 .env
+.env.*
+!.env.example
+
+# Local vendor model and ngspice rerun artifacts (may contain model parameters).
+2[nN]3904.[lL][iI][bB]
+circuit.cir
+result.raw
+run.log
+
+# Local course handout and installed Impeccable skill, not submission artifacts.
+/docs/Lab04_BJT_Amplifier_Simulator_2-2569.html
+/.opencode/skills/impeccable/
+/.opencode/commands/impeccable.md
